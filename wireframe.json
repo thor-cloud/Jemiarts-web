@@ -1,0 +1,470 @@
+{
+  "version": 4,
+  "app_title": "Artist Storefront Plan",
+  "nav": {
+    "placement": "none",
+    "items": []
+  },
+  "pages": [
+    {
+      "id": "page-fabceac7",
+      "name": "Home",
+      "route": "/",
+      "item_ref": {
+        "index": 1,
+        "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+      },
+      "blocks": [
+        {
+          "id": "home-nav",
+          "type": "nav",
+          "label": "Storefront navigation",
+          "hint": "Brand, Home, Portraits, Bouquets, Account",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "home-hero",
+          "type": "hero",
+          "label": "Artist introduction",
+          "hint": "Editorial headline, short story, two category links",
+          "x": 0,
+          "y": 1,
+          "w": 12,
+          "h": 4,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "home-categories",
+          "type": "card_grid",
+          "label": "Explore the work",
+          "hint": "Portraits and pipe cleaner bouquets category cards",
+          "x": 0,
+          "y": 5,
+          "w": 12,
+          "h": 3,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "home-about",
+          "type": "text",
+          "label": "About & contact",
+          "hint": "Saved artist biography and contact/WhatsApp link",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 2,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-773b2c7d",
+      "name": "Bouquets Gallery",
+      "route": "/bouquets",
+      "item_ref": {
+        "index": 1,
+        "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+      },
+      "blocks": [
+        {
+          "id": "bouquets-nav",
+          "type": "nav",
+          "label": "Storefront navigation",
+          "hint": "Brand and public page links",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "bouquets-header",
+          "type": "header",
+          "label": "Bouquet collection",
+          "hint": "Intro and ordering guidance",
+          "x": 0,
+          "y": 1,
+          "w": 12,
+          "h": 2,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "bouquets-grid",
+          "type": "text",
+          "label": "Bouquet models",
+          "hint": "Live image, name, price, and Order Now cards",
+          "x": 0,
+          "y": 3,
+          "w": 12,
+          "h": 5,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "bouquets-contact",
+          "type": "text",
+          "label": "Contact",
+          "hint": "Saved contact/WhatsApp number",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-859a713a",
+      "name": "Portrait Booking",
+      "route": "/portraits",
+      "item_ref": {
+        "index": 1,
+        "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+      },
+      "blocks": [
+        {
+          "id": "portraits-nav",
+          "type": "nav",
+          "label": "Storefront navigation",
+          "hint": "Brand and public page links",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "portraits-hero",
+          "type": "hero",
+          "label": "Custom portrait overview",
+          "hint": "Process, pricing, and artwork context",
+          "x": 0,
+          "y": 1,
+          "w": 12,
+          "h": 3,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "portraits-form",
+          "type": "form",
+          "label": "Portrait order form",
+          "hint": "Size selection, reference photo, and order action",
+          "x": 0,
+          "y": 4,
+          "w": 12,
+          "h": 4,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "portraits-contact",
+          "type": "text",
+          "label": "Contact",
+          "hint": "Saved contact/WhatsApp number",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 1,
+            "text": "Build the public home, bouquet gallery, and portrait booking pages with responsive navigation, clear A4/A3 portrait pricing, live bouquet listings, and entry points into ordering; load saved brand name, theme colors, hero image and welcome text, artist biography, and contact number dynamically on relevant public pages."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-45431e17",
+      "name": "Login and Signup",
+      "route": "/login",
+      "item_ref": {
+        "index": 2,
+        "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+      },
+      "blocks": [
+        {
+          "id": "login-nav",
+          "type": "nav",
+          "label": "Storefront navigation",
+          "hint": "Return to gallery",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "login-form",
+          "type": "form",
+          "label": "Customer access",
+          "hint": "Login and signup with contact details and password",
+          "x": 0,
+          "y": 1,
+          "w": 12,
+          "h": 5,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-cee045cb",
+      "name": "Checkout",
+      "route": "/checkout",
+      "item_ref": {
+        "index": 2,
+        "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+      },
+      "blocks": [
+        {
+          "id": "checkout-nav",
+          "type": "nav",
+          "label": "Storefront navigation",
+          "hint": "Brand and account link",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "checkout-summary",
+          "type": "text",
+          "label": "Order summary",
+          "hint": "Artwork selection and amount",
+          "x": 0,
+          "y": 1,
+          "w": 6,
+          "h": 4,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "checkout-payment",
+          "type": "form",
+          "label": "UPI payment proof",
+          "hint": "Supplied QR image and screenshot upload",
+          "x": 6,
+          "y": 1,
+          "w": 6,
+          "h": 4,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-86728e9f",
+      "name": "Customer Dashboard",
+      "route": "/dashboard",
+      "item_ref": {
+        "index": 2,
+        "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+      },
+      "blocks": [
+        {
+          "id": "dashboard-nav",
+          "type": "nav",
+          "label": "Account navigation",
+          "hint": "Shop links and sign out",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "dashboard-header",
+          "type": "header",
+          "label": "My orders",
+          "hint": "Account greeting and next action",
+          "x": 0,
+          "y": 1,
+          "w": 12,
+          "h": 2,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "dashboard-orders",
+          "type": "list",
+          "label": "Order history",
+          "hint": "Artwork, amount, status, and payment state",
+          "x": 0,
+          "y": 3,
+          "w": 12,
+          "h": 5,
+          "item_ref": {
+            "index": 2,
+            "text": "Build customer signup/login, portrait photo and bouquet quantity ordering, a checkout with the supplied UPI QR asset and payment-proof upload, and a dashboard showing each customer’s orders and statuses."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-65ac5de4",
+      "name": "Admin Dashboard",
+      "route": "/admin-dashboard",
+      "item_ref": {
+        "index": 3,
+        "text": "Build a protected admin dashboard to review orders and payment proofs, change statuses, open prefilled WhatsApp status messages, and upload bouquet models that immediately appear in the gallery; add a Site Settings editor for brand name, primary theme colors, hero banner upload and welcome text, artist biography, and contact/WhatsApp number, saving changes to SQLite for the public frontend."
+      },
+      "blocks": [
+        {
+          "id": "admin-nav",
+          "type": "nav",
+          "label": "Admin navigation",
+          "hint": "Shop, dashboard, and sign out",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 1,
+          "item_ref": {
+            "index": 3,
+            "text": "Build a protected admin dashboard to review orders and payment proofs, change statuses, open prefilled WhatsApp status messages, and upload bouquet models that immediately appear in the gallery; add a Site Settings editor for brand name, primary theme colors, hero banner upload and welcome text, artist biography, and contact/WhatsApp number, saving changes to SQLite for the public frontend."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "admin-header",
+          "type": "header",
+          "label": "Order management",
+          "hint": "Protected workspace heading and overview",
+          "x": 0,
+          "y": 1,
+          "w": 12,
+          "h": 2,
+          "item_ref": {
+            "index": 3,
+            "text": "Build a protected admin dashboard to review orders and payment proofs, change statuses, open prefilled WhatsApp status messages, and upload bouquet models that immediately appear in the gallery; add a Site Settings editor for brand name, primary theme colors, hero banner upload and welcome text, artist biography, and contact/WhatsApp number, saving changes to SQLite for the public frontend."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "admin-orders",
+          "type": "list",
+          "label": "Incoming orders",
+          "hint": "Customer, item, proof, status dropdown, WhatsApp action",
+          "x": 0,
+          "y": 3,
+          "w": 12,
+          "h": 5,
+          "item_ref": {
+            "index": 3,
+            "text": "Build a protected admin dashboard to review orders and payment proofs, change statuses, open prefilled WhatsApp status messages, and upload bouquet models that immediately appear in the gallery; add a Site Settings editor for brand name, primary theme colors, hero banner upload and welcome text, artist biography, and contact/WhatsApp number, saving changes to SQLite for the public frontend."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "admin-bouquet-form",
+          "type": "form",
+          "label": "Add bouquet model",
+          "hint": "Name, price, image upload, and publish action",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 4,
+          "item_ref": {
+            "index": 3,
+            "text": "Build a protected admin dashboard to review orders and payment proofs, change statuses, open prefilled WhatsApp status messages, and upload bouquet models that immediately appear in the gallery; add a Site Settings editor for brand name, primary theme colors, hero banner upload and welcome text, artist biography, and contact/WhatsApp number, saving changes to SQLite for the public frontend."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "admin-settings-form",
+          "type": "form",
+          "label": "Site Settings",
+          "hint": "Edit brand, theme colors, banner image, welcome text, biography, and contact number; save to database",
+          "x": 0,
+          "y": 12,
+          "w": 12,
+          "h": 5,
+          "item_ref": {
+            "index": 3,
+            "text": "Build a protected admin dashboard to review orders and payment proofs, change statuses, open prefilled WhatsApp status messages, and upload bouquet models that immediately appear in the gallery; add a Site Settings editor for brand name, primary theme colors, hero banner upload and welcome text, artist biography, and contact/WhatsApp number, saving changes to SQLite for the public frontend."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    }
+  ],
+  "attached_to_plan": false
+}
