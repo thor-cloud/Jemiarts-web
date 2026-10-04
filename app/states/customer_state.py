@@ -57,6 +57,7 @@ class CustomerState(rx.State):
         self.customer_name = ""
         self.orders = []
         self.checkout_orders = []
+        self.qr_available = False
         self.ready = False
 
     def _view(self, order: Order) -> OrderView:
@@ -101,8 +102,23 @@ class CustomerState(rx.State):
 
     def _qr_exists(self) -> bool:
         path = Path(__file__).resolve().parents[2] / "assets" / "upi-qr.png"
-        return (
-            path.is_file() and not path.is_symlink() and path.stat().st_size > 0
+        try:
+            return (
+                path.is_file()
+                and not path.is_symlink()
+                and path.stat().st_size > 0
+            )
+        except OSError as e:
+            logging.exception(f"Error: {e}")
+            return False
+
+    def _remember_account_path(self):
+        path = self.router.url.path.rstrip("/")
+        query = self.router.url.query_parameters.get("order", "")
+        self._next_path = (
+            f"/checkout?order={query}"
+            if path == "/checkout" and query.isascii() and query.isdigit()
+            else "/dashboard"
         )
 
     @rx.event
@@ -131,17 +147,14 @@ class CustomerState(rx.State):
         self.ready = False
         self.error = ""
         self.notice = ""
+        self.checkout_orders = []
+        self.qr_available = False
         path = self.router.url.path.rstrip("/")
         if not self.session_token:
             self._clear_identity()
             self.ready = True
             if path in ("/dashboard", "/checkout"):
-                query = self.router.url.query_parameters.get("order", "")
-                self._next_path = (
-                    f"/checkout?order={query}"
-                    if path == "/checkout" and query.isdigit()
-                    else "/dashboard"
-                )
+                self._remember_account_path()
                 return rx.redirect("/login")
             return
         try:
@@ -157,9 +170,15 @@ class CustomerState(rx.State):
                 self.qr_available = self._qr_exists()
                 raw_id = self.router.url.query_parameters.get("order", "")
                 if raw_id:
-                    order = repository.customer_order(
-                        customer["id"], int(raw_id)
-                    )
+                    try:
+                        order = repository.customer_order(
+                            customer["id"], int(raw_id)
+                        )
+                    except PermissionError as e:
+                        logging.exception(f"Error: {e}")
+                        raise LookupError(
+                            "Order not found for your account."
+                        ) from e
                     self.checkout_orders = [self._view(order)]
         except PermissionError as e:
             logging.exception("Unexpected error")
@@ -350,8 +369,9 @@ class CustomerState(rx.State):
                 rx.clear_selected_files("portrait-reference"),
                 rx.redirect(f"/checkout?order={order['id']}"),
             ]
-        except PermissionError:
-            logging.exception("Unexpected error")
+        except PermissionError as e:
+            logging.exception(f"Error: {e}")
+            self.session_token = ""
             self._clear_identity()
             self._next_path = "/portraits"
             return rx.redirect("/login")
@@ -385,12 +405,19 @@ class CustomerState(rx.State):
         try:
             repository, customer = self._repository_customer()
             order_id = int(self.router.url.query_parameters.get("order", "0"))
-            order = repository.customer_order(customer["id"], order_id)
+            try:
+                order = repository.customer_order(customer["id"], order_id)
+            except PermissionError as e:
+                logging.exception(f"Error: {e}")
+                raise LookupError(
+                    "This order could not be found for your account."
+                ) from e
             if order["status"] != "awaiting_payment":
                 raise ValueError(
                     "This order is not awaiting payment. Refresh your dashboard."
                 )
-            if not self._qr_exists():
+            self.qr_available = self._qr_exists()
+            if not self.qr_available:
                 raise ValueError(
                     "QR not configured yet. Do not pay or submit proof until the studio configures checkout."
                 )
@@ -410,8 +437,10 @@ class CustomerState(rx.State):
                 "Proof submitted for review. This is not payment confirmation."
             )
             return rx.clear_selected_files("payment-proof")
-        except PermissionError:
-            logging.exception("Unexpected error")
+        except PermissionError as e:
+            logging.exception(f"Error: {e}")
+            self.session_token = ""
+            self._remember_account_path()
             self._clear_identity()
             return rx.redirect("/login")
         except (ValueError, LookupError) as e:

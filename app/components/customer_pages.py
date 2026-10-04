@@ -349,7 +349,8 @@ def checkout_order(order: OrderView) -> rx.Component:
                                 on_click=CustomerState.upload_payment_proof(
                                     rx.upload_files(upload_id="payment-proof")
                                 ),
-                                disabled=CustomerState.busy,
+                                disabled=CustomerState.busy
+                                | ~CustomerState.qr_available,
                                 type="button",
                                 class_name=BUTTON,
                             ),

@@ -66,6 +66,11 @@ def navigation() -> rx.Component:
                 nav_link("Bouquets", "/bouquets"),
                 nav_link("Portraits", "/portraits"),
                 nav_link("Contact", "#contact"),
+                rx.cond(
+                    CustomerState.authenticated,
+                    nav_link("My orders", "/dashboard"),
+                    nav_link("Log in", "/login"),
+                ),
                 id="mobile-navigation",
                 aria_label="Mobile navigation",
                 class_name="md:hidden flex flex-col gap-3 px-6 pb-6 border-t border-[var(--studio-text)]/10",

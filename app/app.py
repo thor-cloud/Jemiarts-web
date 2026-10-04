@@ -39,7 +39,7 @@ app.add_page(
     bouquets_page,
     route="/bouquets",
     title="Bouquet Collection",
-    on_load=PublicState.load_public,
+    on_load=[PublicState.load_public, CustomerState.restore],
 )
 app.add_page(
     portraits_page,
