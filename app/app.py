@@ -3,6 +3,8 @@ import reflex as rx
 from app.components.public_pages import home_page, bouquets_page, portraits_page
 from app.states.public_state import PublicState
 from app.states.customer_state import CustomerState
+from app.states.admin_state import AdminState
+from app.components.admin_pages import admin_page
 from app.components.customer_pages import (
     login_page,
     checkout_page,
@@ -58,6 +60,16 @@ app.add_page(
     route="/checkout",
     title="Checkout · Your Order",
     on_load=[PublicState.load_public, CustomerState.load_account_page],
+)
+app.add_page(
+    admin_page,
+    route="/admin",
+    title="Studio Workspace",
+    on_load=[
+        PublicState.load_public,
+        CustomerState.restore,
+        AdminState.load_admin,
+    ],
 )
 app.add_page(
     dashboard_page,

@@ -26,6 +26,7 @@ from app.states.store_models import (
 from app.states.store_uploads import save_image_upload, require_saved_upload
 from app.states.store_validation import (
     ORDER_STATUSES,
+    ORDER_TRANSITIONS,
     color_value,
     email_address,
     hash_password,
@@ -129,11 +130,17 @@ class StoreRepository:
         )
         encoded = hash_password(password)
         designated_phone = os.environ.get("ARTIST_ADMIN_PHONE", "").strip()
-        is_admin = bool(designated_phone) and hmac.compare_digest(
+        designated_admin = bool(designated_phone) and hmac.compare_digest(
             phone, phone_number(designated_phone)
         )
         try:
             with connection(self.database_path) as conn:
+                is_admin = (
+                    designated_admin
+                    if designated_phone
+                    else conn.execute("SELECT 1 FROM users LIMIT 1").fetchone()
+                    is None
+                )
                 cursor = conn.execute(
                     "INSERT INTO users(name, phone, email, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
                     (name, phone, email, encoded, int(is_admin)),
@@ -202,6 +209,12 @@ class StoreRepository:
                     "Your session has expired. Please log in again."
                 )
             return self._customer(row)
+
+    def session_admin(self, token: str) -> Customer:
+        customer = self.session_customer(token)
+        if not self.is_admin(customer["id"]):
+            raise PermissionError("Administrator access required.")
+        return customer
 
     def revoke_session(self, token: str) -> None:
         digest = hashlib.sha256(token.encode()).hexdigest()
@@ -430,7 +443,18 @@ class StoreRepository:
             raise ValueError("Unknown order status.")
         with connection(self.database_path) as conn:
             self._require_admin(conn, actor_id)
-            self._require_order_access(conn, actor_id, order_id)
+            row = self._require_order_access(conn, actor_id, order_id)
+            if (
+                status != row["status"]
+                and status not in ORDER_TRANSITIONS[row["status"]]
+            ):
+                raise ValueError(
+                    "This status transition is not allowed. Refresh the order."
+                )
+            if status == "confirmed" and not row["payment_proof_path"]:
+                raise ValueError(
+                    "Review a submitted payment proof before confirming the order."
+                )
             conn.execute(
                 "UPDATE orders SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
                 (status, order_id),

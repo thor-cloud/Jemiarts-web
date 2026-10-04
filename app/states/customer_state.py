@@ -27,6 +27,7 @@ class CustomerState(rx.State):
         "", name="studio_session", max_age=604800, same_site="strict", path="/"
     )
     authenticated: bool = False
+    admin_access: bool = False
     customer_name: str = ""
     signup_mode: bool = False
     busy: bool = False
@@ -49,12 +50,14 @@ class CustomerState(rx.State):
         self._actor_id = customer["id"]
         self.authenticated = True
         self.customer_name = customer["name"]
+        self.admin_access = customer["is_admin"]
         return repository, customer
 
     def _clear_identity(self):
         self._actor_id = 0
         self.authenticated = False
-        self.customer_name = ""
+        self.admin_access = False
+        self.customer_name
         self.orders = []
         self.checkout_orders = []
         self.qr_available = False
@@ -242,6 +245,7 @@ class CustomerState(rx.State):
             self._actor_id = customer["id"]
             self.authenticated = True
             self.customer_name = customer["name"]
+            self.admin_access = customer["is_admin"]
             self.orders = []
             self.checkout_orders = []
             yield rx.redirect(self._next_path)

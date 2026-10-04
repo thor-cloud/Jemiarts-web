@@ -19,6 +19,16 @@ ORDER_STATUSES = (
 )
 
 
+ORDER_TRANSITIONS: dict[str, tuple[str, ...]] = {
+    "awaiting_payment": ("cancelled",),
+    "payment_review": ("awaiting_payment", "confirmed", "cancelled"),
+    "confirmed": ("in_progress", "cancelled"),
+    "in_progress": ("completed", "cancelled"),
+    "completed": (),
+    "cancelled": (),
+}
+
+
 def text(value: str, label: str, maximum: int, required: bool = True) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{label} must be text.")

@@ -38,6 +38,10 @@ def navigation() -> rx.Component:
                 nav_link("Portraits", "/portraits"),
                 nav_link("Contact", "#contact"),
                 rx.cond(
+                    CustomerState.admin_access,
+                    nav_link("Studio admin", "/admin"),
+                ),
+                rx.cond(
                     CustomerState.authenticated,
                     nav_link("My orders", "/dashboard"),
                     nav_link("Log in", "/login"),

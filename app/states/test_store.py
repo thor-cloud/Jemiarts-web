@@ -20,7 +20,9 @@ class StoreTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.path = Path(self.temporary.name) / "store.sqlite3"
         self.store = StoreRepository(self.path)
-        self.environment = patch.dict("os.environ", {"ARTIST_ADMIN_PHONE": ""})
+        self.environment = patch.dict(
+            "os.environ", {"ARTIST_ADMIN_PHONE": "+919876543211"}
+        )
         self.environment.start()
         self.addCleanup(self.environment.stop)
 
@@ -139,6 +141,11 @@ class StoreTests(unittest.TestCase):
             self.store.list_orders(customer["id"], True)
         with self.assertRaises(PermissionError):
             self.store.get_order(999, order["id"])
+        with connection(self.path) as conn:
+            conn.execute(
+                "UPDATE orders SET status = 'payment_review' WHERE id = ?",
+                (order["id"],),
+            )
         self.store.set_order_status(admin["id"], order["id"], "confirmed")
         self.assertEqual(
             StoreRepository(self.path).get_order(customer["id"], order["id"])[
