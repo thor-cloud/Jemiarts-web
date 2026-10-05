@@ -57,7 +57,7 @@ class CustomerState(rx.State):
         self._actor_id = 0
         self.authenticated = False
         self.admin_access = False
-        self.customer_name
+        self.customer_name = ""
         self.orders = []
         self.checkout_orders = []
         self.qr_available = False

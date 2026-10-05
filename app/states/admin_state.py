@@ -118,6 +118,13 @@ class AdminState(rx.State):
         self.notice = ""
         yield
         try:
+            from app.states.customer_state import CustomerState
+
+            customer = await self.get_state(CustomerState)
+            if not customer.session_token:
+                self._deny()
+                self.ready = True
+                return
             repository, actor = await self._authorized()
             self._load_orders(repository, actor)
             self.bouquets = repository.list_bouquets()
@@ -126,8 +133,8 @@ class AdminState(rx.State):
                 self._hero_upload or self.settings["hero_image_path"]
             )
             self.allowed = True
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
+        except PermissionError:
+            logging.exception("Unexpected error")
             self._deny()
         except Exception as e:
             logging.exception(f"Error: {e}")

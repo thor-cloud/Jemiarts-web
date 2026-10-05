@@ -100,6 +100,47 @@ class AdminTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.set_order_status(admin["id"], order["id"], "confirmed")
 
+    def test_load_admin_denies_guest_without_authorization_or_traceback(self):
+        self._assert_load_denied("")
+
+    def test_load_admin_denies_non_admin_without_traceback(self):
+        self._assert_load_denied("customer-session")
+
+    def _assert_load_denied(self, token: str):
+        from app.states.customer_state import CustomerState
+
+        state = SimpleNamespace(
+            ready=False,
+            allowed=True,
+            orders=[],
+            bouquets=[{"id": 1}],
+            error="",
+            notice="",
+            get_state=AsyncMock(
+                return_value=SimpleNamespace(session_token=token)
+            ),
+            _authorized=AsyncMock(side_effect=PermissionError("Access denied")),
+        )
+        state._deny = lambda: AdminState._deny(state)
+
+        async def load():
+            async for _ in AdminState.load_admin.fn(state):
+                pass
+
+        with patch("app.states.admin_state.logging.exception") as log_error:
+            asyncio.run(load())
+            log_error.assert_not_called()
+        state.get_state.assert_awaited_once_with(CustomerState)
+        if token:
+            state._authorized.assert_awaited_once()
+        else:
+            state._authorized.assert_not_awaited()
+        self.assertTrue(state.ready)
+        self.assertFalse(state.allowed)
+        self.assertEqual(state.orders, [])
+        self.assertEqual(state.bouquets, [])
+        self.assertIn("Administrator access is required", state.error)
+
     def test_state_authorization_uses_current_customer_session(self):
         admin = self.signup(10)
         token = self.store.create_session(admin["id"])
