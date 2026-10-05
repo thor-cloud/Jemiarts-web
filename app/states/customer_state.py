@@ -347,6 +347,10 @@ class CustomerState(rx.State):
         committed = False
         invalid_reference_count = False
         try:
+            if not self.session_token:
+                self._clear_identity()
+                self._next_path = "/portraits"
+                return rx.redirect("/login")
             try:
                 repository, customer = self._repository_customer()
             except PermissionError:
