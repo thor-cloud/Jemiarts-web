@@ -320,7 +320,9 @@ def checkout_order(order: OrderView) -> rx.Component:
                         CustomerState.qr_available,
                         rx.el.div(
                             rx.el.img(
-                                src="placeholder.svg",
+                                src=rx.get_upload_url(
+                                    CustomerState.qr_image_path
+                                ),
                                 alt="Studio-provided UPI payment QR code",
                                 class_name="w-full max-w-64 aspect-square object-contain bg-white p-4 mx-auto",
                             ),

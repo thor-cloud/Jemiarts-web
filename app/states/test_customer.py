@@ -5,12 +5,13 @@ import asyncio
 import ast
 from pathlib import Path
 from types import MethodType, SimpleNamespace
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, AsyncMock
 
 from app.states.customer_state import CustomerState
 
 from app.states.store_repository import StoreRepository
 from app.states.store_database import connection
+from app.states.test_payment_qr import png_test_image
 
 
 class CustomerIntegrationTests(unittest.TestCase):
@@ -124,6 +125,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
             orders=[],
             checkout_orders=[],
             qr_available=False,
+            qr_image_path="",
             busy=False,
         )
         for name in (
@@ -131,7 +133,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
             "_remember_account_path",
             "_view",
             "_repository_customer",
-            "_qr_exists",
+            "_load_payment_qr",
         ):
             setattr(
                 state, name, MethodType(getattr(CustomerState, name), state)
@@ -164,7 +166,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         repository.list_orders.return_value = []
         repository.customer_order.side_effect = PermissionError("Not yours")
         state._repository_customer = Mock(return_value=(repository, {"id": 1}))
-        state._qr_exists = Mock(return_value=False)
+        repository.get_settings.return_value = {"payment_qr_path": ""}
         CustomerState.load_account_page.fn(state)
         repository.customer_order.assert_called_once_with(1, 42)
         self.assertTrue(state.authenticated)
@@ -193,36 +195,120 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         state.qr_available = True
         asyncio.run(CustomerState.upload_payment_proof.fn(state, []))
         self.assertFalse(state.qr_available)
+        self.assertEqual(state.qr_image_path, "")
+        repository.get_settings.assert_called_once_with()
         self.assertIn("QR not configured", state.error)
         repository.save_upload.assert_not_called()
         repository.submit_payment_proof.assert_not_called()
 
-    def test_qr_presence_check_fails_closed(self):
+    def test_saved_qr_presence_check_fails_closed(self):
         state = self.state()
+        repository = Mock()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            module = root / "app" / "states" / "customer_state.py"
-            assets = root / "assets"
-            assets.mkdir()
-            with patch("app.states.customer_state.__file__", str(module)):
-                self.assertFalse(state._qr_exists())
-                qr = assets / "upi-qr.png"
+            with patch.object(rx, "get_upload_dir", return_value=root):
+                repository.get_settings.return_value = {
+                    "payment_qr_path": "artist.png"
+                }
+                state._load_payment_qr(repository)
+                self.assertFalse(state.qr_available)
+                qr = root / "artist.png"
                 qr.touch()
-                self.assertFalse(state._qr_exists())
-                qr.write_bytes(b"studio-provided asset")
-                self.assertTrue(state._qr_exists())
+                state._load_payment_qr(repository)
+                self.assertFalse(state.qr_available)
+                qr.write_bytes(b"not an image or QR")
+                state._load_payment_qr(repository)
+                self.assertFalse(state.qr_available)
+                qr.write_bytes(png_test_image())
+                state._load_payment_qr(repository)
+                self.assertTrue(state.qr_available)
+                self.assertEqual(state.qr_image_path, "artist.png")
+                for invalid in (
+                    "",
+                    "../artist.png",
+                    "missing.png",
+                    "https://example.com/qr.png",
+                ):
+                    repository.get_settings.return_value = {
+                        "payment_qr_path": invalid
+                    }
+                    state._load_payment_qr(repository)
+                    self.assertFalse(state.qr_available)
+                    self.assertEqual(state.qr_image_path, "")
+                repository.get_settings.return_value = {
+                    "payment_qr_path": "artist.png"
+                }
                 qr.unlink()
-                qr.symlink_to(assets / "missing.png")
-                self.assertFalse(state._qr_exists())
+                qr.symlink_to(root / "missing.png")
+                state._load_payment_qr(repository)
+                self.assertFalse(state.qr_available)
+                self.assertEqual(state.qr_image_path, "")
         with patch(
-            "app.states.customer_state.Path.is_file", side_effect=OSError
+            "app.states.store_uploads.Path.is_file", side_effect=OSError
         ):
-            self.assertFalse(state._qr_exists())
+            state._load_payment_qr(repository)
+            self.assertFalse(state.qr_available)
+            self.assertEqual(state.qr_image_path, "")
+
+    def test_checkout_loads_saved_qr_and_rechecks_after_upload(self):
+        state = self.state(token="valid")
+        repository = Mock()
+        order = {
+            "id": 42,
+            "kind": "bouquet",
+            "bouquet_id": 1,
+            "details": {"model_name": "Ordered bouquet"},
+            "quantity": 1,
+            "unit_price_paise": 100,
+            "total_price_paise": 100,
+            "status": "awaiting_payment",
+            "payment_proof_path": "",
+            "created_at": "2026-01-01",
+        }
+        repository.customer_order.return_value = order
+        repository.list_orders.return_value = [order]
+        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "artist.png").write_bytes(png_test_image())
+            with patch.object(rx, "get_upload_dir", return_value=root):
+                repository.get_settings.return_value = {
+                    "payment_qr_path": "artist.png"
+                }
+                CustomerState.load_account_page.fn(state)
+                self.assertTrue(state.qr_available)
+                self.assertEqual(state.qr_image_path, "artist.png")
+                repository.get_settings.return_value = {"payment_qr_path": ""}
+                file = SimpleNamespace(close=AsyncMock())
+                asyncio.run(
+                    CustomerState.upload_payment_proof.fn(state, [file])
+                )
+                repository.save_upload.assert_not_called()
+                repository.submit_payment_proof.assert_not_called()
+                file.close.assert_awaited()
+                self.assertFalse(state.qr_available)
+                self.assertIn("QR not configured", state.error)
+                repository.get_settings.side_effect = [
+                    {"payment_qr_path": "artist.png"},
+                    {"payment_qr_path": ""},
+                ]
+                (root / "proof.png").write_bytes(png_test_image())
+                repository.save_upload = AsyncMock(return_value="proof.png")
+                asyncio.run(
+                    CustomerState.upload_payment_proof.fn(state, [file])
+                )
+                repository.submit_payment_proof.assert_not_called()
+                self.assertFalse((root / "proof.png").exists())
+                self.assertFalse(state.qr_available)
+                self.assertEqual(state.qr_image_path, "")
 
     def test_checkout_qr_and_customer_event_wiring(self):
         root = Path(__file__).resolve().parents[1]
         checkout = (root / "components" / "customer_pages.py").read_text()
-        self.assertIn('src="/upi-qr.png"', checkout)
+        self.assertIn(
+            "src=rx.get_upload_url(CustomerState.qr_image_path)", checkout
+        )
+        self.assertNotIn("upi-qr.png", checkout)
         self.assertNotIn("placeholder.svg", checkout)
         self.assertIn("CustomerState.qr_available", checkout)
         self.assertIn("CustomerState.upload_payment_proof(", checkout)

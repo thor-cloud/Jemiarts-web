@@ -177,22 +177,34 @@ def admin_picker(upload_id: str, target: str) -> rx.Component:
                 "image-plus", class_name="h-7 w-7 text-[var(--studio-accent)]"
             ),
             rx.el.p(
-                "Choose one image",
+                rx.cond(
+                    target == "payment-qr",
+                    "Choose the artist's real UPI QR PNG",
+                    "Choose one image",
+                ),
                 class_name="text-sm text-[var(--studio-text)]",
             ),
             rx.el.p(
-                "JPEG, PNG or WebP · up to 10 MB",
+                rx.cond(
+                    target == "payment-qr",
+                    "PNG only · up to 10 MB",
+                    "JPEG, PNG or WebP · up to 10 MB",
+                ),
                 class_name="text-xs text-[var(--studio-text)]/60",
             ),
             id=upload_id,
             multiple=False,
             max_files=1,
             disabled=AdminState.busy,
-            accept={
-                "image/jpeg": [".jpg", ".jpeg"],
-                "image/png": [".png"],
-                "image/webp": [".webp"],
-            },
+            accept=rx.cond(
+                target == "payment-qr",
+                {"image/png": [".png"]},
+                {
+                    "image/jpeg": [".jpg", ".jpeg"],
+                    "image/png": [".png"],
+                    "image/webp": [".webp"],
+                },
+            ),
             class_name="flex flex-col items-center gap-3 p-6 border border-dashed border-[var(--studio-text)]/25 bg-transparent cursor-pointer",
         ),
         rx.foreach(
@@ -215,7 +227,13 @@ def admin_picker(upload_id: str, target: str) -> rx.Component:
                             rx.upload_files(upload_id=upload_id)
                         ),
                     ),
-                    AdminState.stage_hero_image(
+                    (
+                        "hero",
+                        AdminState.stage_hero_image(
+                            rx.upload_files(upload_id=upload_id)
+                        ),
+                    ),
+                    AdminState.stage_payment_qr_image(
                         rx.upload_files(upload_id=upload_id)
                     ),
                 ),
@@ -439,6 +457,27 @@ def settings_panel() -> rx.Component:
                     ),
                 ),
                 admin_picker("admin-hero", "hero"),
+                rx.el.h3(
+                    "Artist UPI payment QR",
+                    class_name="font-['Cormorant_Garamond'] text-3xl mt-10 mb-5",
+                ),
+                rx.el.p(
+                    "Upload your real artist-owned UPI QR as a PNG, then save site settings. No QR or recipient is generated here; this is not a payment integration. Customers must verify the recipient in their UPI app.",
+                    class_name="text-sm leading-7 text-[var(--studio-text)]/65 mb-5",
+                ),
+                rx.cond(
+                    AdminState.payment_qr_image != "",
+                    rx.el.img(
+                        src=rx.get_upload_url(AdminState.payment_qr_image),
+                        alt="Artist-uploaded current or staged UPI QR",
+                        class_name="w-full max-w-64 aspect-square object-contain bg-white p-4 mb-6",
+                    ),
+                    rx.el.p(
+                        "QR not configured yet. Checkout proof submission remains disabled until a valid QR is saved.",
+                        class_name="text-sm leading-7 text-[var(--studio-accent)] mb-5",
+                    ),
+                ),
+                admin_picker("admin-payment-qr", "payment-qr"),
                 class_name="border border-[var(--studio-text)]/15 p-6 md:p-8",
             ),
             class_name="grid lg:grid-cols-2 gap-10 items-start",

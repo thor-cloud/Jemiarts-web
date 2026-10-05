@@ -5,7 +5,11 @@ from urllib.parse import quote
 
 from app.states.store_models import Bouquet, OrderStatus, SiteSettings
 from app.states.store_repository import StoreRepository
-from app.states.store_uploads import require_saved_upload, saved_upload_file
+from app.states.store_uploads import (
+    require_saved_upload,
+    saved_upload_file,
+    require_saved_png,
+)
 from app.states.store_validation import ORDER_TRANSITIONS, rupees_to_paise, text
 
 
@@ -36,6 +40,7 @@ class AdminState(rx.State):
     bouquet_price: str = ""
     bouquet_image: str = ""
     hero_image: str = ""
+    payment_qr_image: str = ""
     settings: SiteSettings = {
         "id": 1,
         "brand_name": "Artist Studio",
@@ -43,6 +48,7 @@ class AdminState(rx.State):
         "text_color": "#29231E",
         "accent_color": "#B76D50",
         "hero_image_path": "",
+        "payment_qr_path": "",
         "welcome_text": "",
         "artist_biography": "",
         "contact_number": "",
@@ -50,6 +56,7 @@ class AdminState(rx.State):
     }
     _bouquet_upload: str = ""
     _hero_upload: str = ""
+    _payment_qr_upload: str = ""
 
     async def _authorized(self) -> tuple[StoreRepository, int]:
         from app.states.customer_state import CustomerState
@@ -131,6 +138,9 @@ class AdminState(rx.State):
             self.settings = repository.get_settings()
             self.hero_image = self._image(
                 self._hero_upload or self.settings["hero_image_path"]
+            )
+            self.payment_qr_image = self._image(
+                self._payment_qr_upload or self.settings["payment_qr_path"]
             )
             self.allowed = True
         except PermissionError:
@@ -220,6 +230,10 @@ class AdminState(rx.State):
     async def stage_hero_image(self, files: list[rx.UploadFile]):
         return await self._stage_image("hero", files)
 
+    @rx.event
+    async def stage_payment_qr_image(self, files: list[rx.UploadFile]):
+        return await self._stage_image("payment-qr", files)
+
     async def _stage_image(self, target: str, files: list[rx.UploadFile]):
         if self.busy:
             for file in files:
@@ -232,16 +246,25 @@ class AdminState(rx.State):
         staged = False
         try:
             repository, actor = await self._authorized()
-            if target not in ("bouquet", "hero") or len(files) != 1:
+            if (
+                target not in ("bouquet", "hero", "payment-qr")
+                or len(files) != 1
+            ):
                 raise ValueError(
                     "Choose exactly one JPEG, PNG or WebP image, up to 10 MB."
                 )
-            filename = await repository.save_upload(actor, files[0])
+            filename = await repository.save_admin_upload(
+                actor, files[0], png_only=target == "payment-qr"
+            )
             await self._authorized()
             if target == "bouquet":
                 self._discard(self._bouquet_upload)
                 self._bouquet_upload = filename
                 self.bouquet_image = filename
+            elif target == "payment-qr":
+                self._discard(self._payment_qr_upload)
+                self._payment_qr_upload = filename
+                self.payment_qr_image = filename
             else:
                 self._discard(self._hero_upload)
                 self._hero_upload = filename
@@ -331,7 +354,15 @@ class AdminState(rx.State):
                 settings["hero_image_path"] = require_saved_upload(
                     self._hero_upload
                 )
+            if self._payment_qr_upload:
+                settings["payment_qr_path"] = require_saved_png(
+                    self._payment_qr_upload
+                )
             self.settings = repository.update_settings(actor, settings)
+            self._payment_qr_upload = ""
+            self.payment_qr_image = self._image(
+                self.settings["payment_qr_path"]
+            )
             self._hero_upload = ""
             self.hero_image = self._image(self.settings["hero_image_path"])
             self.notice = "Site settings saved. The public storefront now uses your changes."

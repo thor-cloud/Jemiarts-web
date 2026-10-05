@@ -19,6 +19,7 @@ class PublicState(rx.State):
         "text_color": "#29231E",
         "accent_color": "#B76D50",
         "hero_image_path": "",
+        "payment_qr_path": "",
         "welcome_text": "",
         "artist_biography": "",
         "contact_number": "",

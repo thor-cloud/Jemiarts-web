@@ -23,7 +23,11 @@ from app.states.store_models import (
     OrderStatus,
     SiteSettings,
 )
-from app.states.store_uploads import save_image_upload, require_saved_upload
+from app.states.store_uploads import (
+    save_image_upload,
+    require_saved_upload,
+    require_saved_png,
+)
 from app.states.store_validation import (
     ORDER_STATUSES,
     ORDER_TRANSITIONS,
@@ -268,6 +272,13 @@ class StoreRepository:
         self.get_customer(actor_id, actor_id)
         return await save_image_upload(file)
 
+    async def save_admin_upload(
+        self, actor_id: int, file: rx.UploadFile, png_only: bool = False
+    ) -> str:
+        with connection(self.database_path) as conn:
+            self._require_admin(conn, actor_id)
+        return await save_image_upload(file, png_only=png_only)
+
     def is_admin(self, actor_id: int) -> bool:
         with connection(self.database_path) as conn:
             row = conn.execute(
@@ -497,6 +508,7 @@ class StoreRepository:
                 text_color=row["text_color"],
                 accent_color=row["accent_color"],
                 hero_image_path=row["hero_image_path"],
+                payment_qr_path=row["payment_qr_path"],
                 welcome_text=row["welcome_text"],
                 artist_biography=row["artist_biography"],
                 contact_number=row["contact_number"],
@@ -506,6 +518,8 @@ class StoreRepository:
     def update_settings(
         self, actor_id: int, settings: SiteSettings
     ) -> SiteSettings:
+        with connection(self.database_path) as conn:
+            self._require_admin(conn, actor_id)
         if settings["id"] != 1:
             raise ValueError("Site settings must use the singleton record.")
         values = (
@@ -514,6 +528,9 @@ class StoreRepository:
             color_value(settings["text_color"]),
             color_value(settings["accent_color"]),
             upload_path(settings["hero_image_path"]),
+            require_saved_png(settings["payment_qr_path"])
+            if settings["payment_qr_path"]
+            else "",
             text(settings["welcome_text"], "Welcome text", 4000, False),
             text(settings["artist_biography"], "Biography", 12000, False),
             phone_number(settings["contact_number"], False),
@@ -522,7 +539,7 @@ class StoreRepository:
             self._require_admin(conn, actor_id)
             conn.execute(
                 """UPDATE site_settings SET brand_name = ?, background_color = ?, text_color = ?, accent_color = ?,
-                hero_image_path = ?, welcome_text = ?, artist_biography = ?, contact_number = ?,
+                hero_image_path = ?, payment_qr_path = ?, welcome_text = ?, artist_biography = ?, contact_number = ?,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 1""",
                 values,
             )

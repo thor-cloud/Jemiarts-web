@@ -9,7 +9,7 @@ from collections.abc import Iterator
 LOCAL_DATABASE = (
     Path(__file__).resolve().parents[2] / ".local" / "artist_store.sqlite3"
 )
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS users (
@@ -60,6 +60,7 @@ SCHEMA = (
         text_color TEXT NOT NULL,
         accent_color TEXT NOT NULL,
         hero_image_path TEXT NOT NULL DEFAULT '',
+        payment_qr_path TEXT NOT NULL DEFAULT '',
         welcome_text TEXT NOT NULL DEFAULT '',
         artist_biography TEXT NOT NULL DEFAULT '',
         contact_number TEXT NOT NULL DEFAULT '',
@@ -100,12 +101,20 @@ def connection(
 def initialize_database(database_path: Path = LOCAL_DATABASE) -> None:
     with connection(database_path) as conn:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, SCHEMA_VERSION):
+        if version not in (0, 1, SCHEMA_VERSION):
             raise RuntimeError(
                 "Unsupported SQLite schema version; migration required."
             )
         for statement in SCHEMA:
             conn.execute(statement)
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(site_settings)")
+        }
+        if "payment_qr_path" not in columns:
+            conn.execute(
+                "ALTER TABLE site_settings ADD COLUMN payment_qr_path TEXT NOT NULL DEFAULT ''"
+            )
         conn.execute(
             """INSERT INTO site_settings
             (id, brand_name, background_color, text_color, accent_color, welcome_text)
@@ -118,4 +127,4 @@ def initialize_database(database_path: Path = LOCAL_DATABASE) -> None:
                 "Art made personal. Flowers made to keep.",
             ),
         )
-        conn.execute("PRAGMA user_version = 1")
+        conn.execute("PRAGMA user_version = 2")

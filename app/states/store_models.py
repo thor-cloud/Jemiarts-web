@@ -58,6 +58,7 @@ class SiteSettings(TypedDict):
     text_color: str
     accent_color: str
     hero_image_path: str
+    payment_qr_path: str
     welcome_text: str
     artist_biography: str
     contact_number: str

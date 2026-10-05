@@ -1,12 +1,11 @@
 import reflex as rx
 import logging
 import time
-from pathlib import Path
 from typing import Any, TypedDict
 
 from app.states.store_models import Customer, Order
 from app.states.store_repository import StoreRepository
-from app.states.store_uploads import saved_upload_file
+from app.states.store_uploads import saved_upload_file, require_saved_png
 from app.states.store_validation import quantity_value
 
 
@@ -37,6 +36,7 @@ class CustomerState(rx.State):
     orders: list[OrderView] = []
     checkout_orders: list[OrderView] = []
     qr_available: bool = False
+    qr_image_path: str = ""
     bouquet_id: int = 0
     bouquet_name: str = ""
     bouquet_price_paise: int = 0
@@ -61,6 +61,7 @@ class CustomerState(rx.State):
         self.orders = []
         self.checkout_orders = []
         self.qr_available = False
+        self.qr_image_path = ""
         self.ready = False
 
     def _view(self, order: Order) -> OrderView:
@@ -103,17 +104,17 @@ class CustomerState(rx.State):
             provisional=portrait,
         )
 
-    def _qr_exists(self) -> bool:
-        path = Path(__file__).resolve().parents[2] / "assets" / "upi-qr.png"
+    def _load_payment_qr(self, repository: StoreRepository) -> None:
+        self.qr_available = False
+        self.qr_image_path = ""
+        filename = repository.get_settings()["payment_qr_path"]
+        if not filename:
+            return
         try:
-            return (
-                path.is_file()
-                and not path.is_symlink()
-                and path.stat().st_size > 0
-            )
-        except OSError as e:
+            self.qr_image_path = require_saved_png(filename)
+            self.qr_available = True
+        except (OSError, ValueError) as e:
             logging.exception(f"Error: {e}")
-            return False
 
     def _remember_account_path(self):
         path = self.router.url.path.rstrip("/")
@@ -170,7 +171,7 @@ class CustomerState(rx.State):
             ]
             self.checkout_orders = []
             if path == "/checkout":
-                self.qr_available = self._qr_exists()
+                self._load_payment_qr(repository)
                 raw_id = self.router.url.query_parameters.get("order", "")
                 if raw_id:
                     try:
@@ -420,7 +421,7 @@ class CustomerState(rx.State):
                 raise ValueError(
                     "This order is not awaiting payment. Refresh your dashboard."
                 )
-            self.qr_available = self._qr_exists()
+            self._load_payment_qr(repository)
             if not self.qr_available:
                 raise ValueError(
                     "QR not configured yet. Do not pay or submit proof until the studio configures checkout."
@@ -428,6 +429,11 @@ class CustomerState(rx.State):
             if len(files) != 1:
                 raise ValueError("Select one payment screenshot first.")
             filename = await repository.save_upload(customer["id"], files[0])
+            self._load_payment_qr(repository)
+            if not self.qr_available:
+                raise ValueError(
+                    "QR not configured yet. Do not pay or submit proof until the studio configures checkout."
+                )
             order = repository.submit_payment_proof(
                 customer["id"], order_id, filename
             )

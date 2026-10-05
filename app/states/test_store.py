@@ -167,7 +167,7 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             with connection(self.path) as conn:
                 conn.execute(
-                    "INSERT INTO site_settings SELECT 2, brand_name, background_color, text_color, accent_color, hero_image_path, welcome_text, artist_biography, contact_number, updated_at FROM site_settings"
+                    "INSERT INTO site_settings SELECT 2, brand_name, background_color, text_color, accent_color, hero_image_path, payment_qr_path, welcome_text, artist_biography, contact_number, updated_at FROM site_settings"
                 )
 
     def test_validation_and_rollback(self):
