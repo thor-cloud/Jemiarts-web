@@ -145,6 +145,7 @@ class AdminState(rx.State):
             self.allowed = True
         except PermissionError:
             logging.exception("Unexpected error")
+            logging.info("Studio access denied")
             self._deny()
         except Exception as e:
             logging.exception(f"Error: {e}")

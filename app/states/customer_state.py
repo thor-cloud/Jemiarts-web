@@ -345,8 +345,17 @@ class CustomerState(rx.State):
         self.error = ""
         filename = ""
         committed = False
+        invalid_reference_count = False
         try:
-            repository, customer = self._repository_customer()
+            try:
+                repository, customer = self._repository_customer()
+            except PermissionError:
+                logging.exception("Unexpected error")
+                logging.info("Portrait order requires sign-in")
+                self.session_token = ""
+                self._clear_identity()
+                self._next_path = "/portraits"
+                return rx.redirect("/login")
             from app.states.public_state import (
                 PublicState,
                 PORTRAIT_STARTING_PRICES_PAISE,
@@ -357,6 +366,7 @@ class CustomerState(rx.State):
             if size not in PORTRAIT_STARTING_PRICES_PAISE:
                 raise ValueError("Choose A4 or A3.")
             if len(files) != 1:
+                invalid_reference_count = True
                 raise ValueError("Select one reference image before ordering.")
             filename = await repository.save_upload(customer["id"], files[0])
             order = repository.create_order(
@@ -374,14 +384,9 @@ class CustomerState(rx.State):
                 rx.clear_selected_files("portrait-reference"),
                 rx.redirect(f"/checkout?order={order['id']}"),
             ]
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self.session_token = ""
-            self._clear_identity()
-            self._next_path = "/portraits"
-            return rx.redirect("/login")
         except ValueError as e:
-            logging.exception(f"Error: {e}")
+            if not invalid_reference_count:
+                logging.exception(f"Error: {e}")
             self.error = str(e)
         except Exception as e:
             logging.exception(f"Error: {e}")

@@ -302,6 +302,120 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                 self.assertFalse(state.qr_available)
                 self.assertEqual(state.qr_image_path, "")
 
+    def test_portrait_requires_exactly_one_reference_without_error_logging(
+        self,
+    ):
+        for count in (0, 2):
+            with self.subTest(count=count):
+                state = self.state(token="valid")
+                repository = Mock()
+                state._repository_customer = Mock(
+                    return_value=(repository, {"id": 1})
+                )
+                state.get_state = AsyncMock(
+                    return_value=SimpleNamespace(portrait_size="A4")
+                )
+                files = [
+                    SimpleNamespace(close=AsyncMock()) for _ in range(count)
+                ]
+                with patch(
+                    "app.states.customer_state.logging.exception"
+                ) as log:
+                    asyncio.run(CustomerState.order_portrait.fn(state, files))
+                    log.assert_not_called()
+                self.assertEqual(
+                    state.error, "Select one reference image before ordering."
+                )
+                self.assertFalse(state.busy)
+                self.assertEqual(state.session_token, "valid")
+                repository.save_upload.assert_not_called()
+                repository.create_order.assert_not_called()
+                for file in files:
+                    file.close.assert_awaited_once()
+
+    def test_anonymous_portrait_redirect_does_not_log_expected_error(self):
+        state = self.state()
+        state._repository_customer = Mock(
+            side_effect=PermissionError("Please log in to continue.")
+        )
+        file = SimpleNamespace(close=AsyncMock())
+        with (
+            patch("app.states.customer_state.logging.exception") as log,
+            patch.object(rx, "redirect") as redirect,
+        ):
+            asyncio.run(CustomerState.order_portrait.fn(state, [file]))
+            log.assert_not_called()
+            redirect.assert_called_once_with("/login")
+        self.assertEqual(state._next_path, "/portraits")
+        self.assertEqual(state.session_token, "")
+        self.assertFalse(state.authenticated)
+        self.assertFalse(state.busy)
+        file.close.assert_awaited_once()
+
+    def test_unexpected_portrait_failure_logs_and_cleans_saved_reference(self):
+        state = self.state(token="valid")
+        repository = Mock()
+        repository.save_upload = AsyncMock(return_value="reference.png")
+        repository.create_order.side_effect = RuntimeError("Save failed")
+        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        state.get_state = AsyncMock(
+            return_value=SimpleNamespace(portrait_size="A4")
+        )
+        file = SimpleNamespace(close=AsyncMock())
+        saved_file = Mock()
+        with (
+            patch("app.states.customer_state.logging.exception") as log,
+            patch(
+                "app.states.customer_state.saved_upload_file",
+                return_value=saved_file,
+            ),
+        ):
+            asyncio.run(CustomerState.order_portrait.fn(state, [file]))
+            log.assert_called_once()
+        saved_file.unlink.assert_called_once_with(missing_ok=True)
+        file.close.assert_awaited_once()
+        self.assertFalse(state.busy)
+        self.assertIn("could not be saved", state.error)
+
+    def test_portrait_action_disabled_guard_and_accessible_help(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "components" / "public_pages.py").read_text()
+        tree = ast.parse(source)
+        page = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "portraits_page"
+        )
+        button = next(
+            node
+            for node in ast.walk(page)
+            if isinstance(node, ast.Call)
+            and any(
+                keyword.arg == "on_click"
+                and "CustomerState.order_portrait" in ast.unparse(keyword.value)
+                for keyword in node.keywords
+            )
+        )
+        props = {keyword.arg: keyword.value for keyword in button.keywords}
+        guard = props["disabled"]
+        self.assertIsInstance(guard, ast.BinOp)
+        self.assertIsInstance(guard.op, ast.BitOr)
+        self.assertEqual(
+            ast.unparse(guard.left),
+            "rx.selected_files('portrait-reference').length() != 1",
+        )
+        self.assertEqual(ast.unparse(guard.right), "CustomerState.busy")
+        self.assertEqual(
+            ast.literal_eval(props["aria_describedby"]), "portrait-order-help"
+        )
+        self.assertIn('id="portrait-order-help"', source)
+        self.assertIn("Choose one reference photo before ordering.", source)
+        self.assertIn(
+            "rx.upload_files(upload_id='portrait-reference')",
+            ast.unparse(props["on_click"]),
+        )
+
     def test_checkout_qr_and_customer_event_wiring(self):
         root = Path(__file__).resolve().parents[1]
         checkout = (root / "components" / "customer_pages.py").read_text()

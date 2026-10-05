@@ -389,9 +389,20 @@ def portraits_page() -> rx.Component:
                             on_click=CustomerState.order_portrait(
                                 rx.upload_files(upload_id="portrait-reference")
                             ),
-                            disabled=CustomerState.busy,
+                            disabled=(
+                                rx.selected_files("portrait-reference").length()
+                                != 1
+                            )
+                            | CustomerState.busy,
+                            aria_describedby="portrait-order-help",
+                            aria_busy=CustomerState.busy,
                             type="button",
-                            class_name="w-full flex items-center justify-center gap-4 bg-[var(--studio-accent)] text-[var(--studio-bg)] px-6 py-4 text-sm font-medium hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-4",
+                            class_name="w-full flex items-center justify-center gap-4 bg-[var(--studio-accent)] text-[var(--studio-bg)] px-6 py-4 text-sm font-medium enabled:hover:opacity-85 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-4",
+                        ),
+                        rx.el.p(
+                            "Choose one reference photo before ordering.",
+                            id="portrait-order-help",
+                            class_name="text-xs text-[var(--studio-text)]/70 mt-3",
                         ),
                         rx.el.p(
                             "Sign in first if needed, then select your photo again. This creates an order, not a payment.",

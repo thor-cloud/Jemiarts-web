@@ -88,10 +88,16 @@ def connection(
             conn.rollback()
         logging.exception(f"Error: {error}")
         raise
-    except Exception:
+    except (PermissionError, ValueError, LookupError):
         logging.exception("Unexpected error")
+        logging.info("Request validation or access denied")
         if conn is not None:
             conn.rollback()
+        raise
+    except Exception:
+        if conn is not None:
+            conn.rollback()
+        logging.exception("Unexpected error")
         raise
     finally:
         if conn is not None:
