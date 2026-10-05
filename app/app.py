@@ -7,9 +7,9 @@ from app.states.admin_state import AdminState
 from app.components.admin_pages import admin_page
 from app.components.customer_pages import (
     login_page,
-    checkout_page,
     dashboard_page,
 )
+from app.components.customer_checkout_new import new_customer_checkout_page
 
 
 def index() -> rx.Component:
@@ -56,7 +56,7 @@ app.add_page(
     on_load=[PublicState.load_public, CustomerState.load_account_page],
 )
 app.add_page(
-    checkout_page,
+    new_customer_checkout_page,
     route="/checkout",
     title="Checkout · Your Order",
     on_load=[PublicState.load_public, CustomerState.load_account_page],
