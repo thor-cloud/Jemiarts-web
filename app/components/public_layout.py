@@ -49,17 +49,42 @@ def navigation() -> rx.Component:
                 aria_label="Main navigation",
                 class_name="hidden md:flex items-center gap-8",
             ),
-            rx.el.button(
-                rx.cond(
-                    PublicState.menu_open,
-                    rx.icon("x", class_name="h-5 w-5"),
-                    rx.icon("menu", class_name="h-5 w-5"),
+            rx.el.div(
+                rx.el.button(
+                    rx.color_mode_cond(
+                        light=rx.icon(
+                            "moon", class_name="h-5 w-5", aria_hidden=True
+                        ),
+                        dark=rx.icon(
+                            "sun", class_name="h-5 w-5", aria_hidden=True
+                        ),
+                    ),
+                    type="button",
+                    on_click=rx.toggle_color_mode,
+                    aria_label=rx.color_mode_cond(
+                        light="Switch to dark mode",
+                        dark="Switch to light mode",
+                    ),
+                    title=rx.color_mode_cond(
+                        light="Switch to dark mode",
+                        dark="Switch to light mode",
+                    ),
+                    class_name="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--studio-text)]/20 bg-transparent text-[var(--studio-text)] hover:bg-[var(--studio-text)]/5 hover:border-[var(--studio-accent)] transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--studio-text)]",
                 ),
-                on_click=PublicState.toggle_menu,
-                aria_label="Toggle navigation",
-                aria_expanded=PublicState.menu_open,
-                aria_controls="mobile-navigation",
-                class_name="md:hidden shrink-0 p-3 border border-[var(--studio-text)]/20 rounded-full text-[var(--studio-text)] bg-transparent focus-visible:outline-2",
+                rx.el.button(
+                    rx.cond(
+                        PublicState.menu_open,
+                        rx.icon("x", class_name="h-5 w-5", aria_hidden=True),
+                        rx.icon("menu", class_name="h-5 w-5", aria_hidden=True),
+                    ),
+                    type="button",
+                    on_click=PublicState.toggle_menu,
+                    aria_label="Toggle navigation",
+                    aria_expanded=PublicState.menu_open,
+                    aria_controls="mobile-navigation",
+                    class_name="md:hidden flex h-11 w-11 shrink-0 items-center justify-center border border-[var(--studio-text)]/20 rounded-full text-[var(--studio-text)] bg-transparent hover:bg-[var(--studio-text)]/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--studio-text)]",
+                ),
+                class_name="flex shrink-0 items-center gap-3",
             ),
             class_name="max-w-7xl mx-auto flex items-center justify-between gap-6 px-6 md:px-10 py-6",
         ),
@@ -192,9 +217,16 @@ def public_layout(content: rx.Component) -> rx.Component:
         ),
         footer(),
         style={
-            "--studio-bg": PublicState.settings["background_color"],
-            "--studio-text": PublicState.settings["text_color"],
-            "--studio-accent": PublicState.settings["accent_color"],
+            "--studio-bg": rx.color_mode_cond(
+                light=PublicState.settings["background_color"], dark="#211E1B"
+            ),
+            "--studio-text": rx.color_mode_cond(
+                light=PublicState.settings["text_color"], dark="#F7F3EC"
+            ),
+            "--studio-accent": rx.color_mode_cond(
+                light=PublicState.settings["accent_color"], dark="#DE9777"
+            ),
+            "color_scheme": rx.color_mode_cond(light="light", dark="dark"),
         },
-        class_name="min-h-dvh flex flex-col w-full bg-[var(--studio-bg)] text-[var(--studio-text)] font-['DM_Sans'] selection:bg-[var(--studio-accent)]/20",
+        class_name="min-h-dvh flex flex-col w-full bg-[var(--studio-bg)] text-[var(--studio-text)] font-['DM_Sans'] selection:bg-[var(--studio-accent)]/20 [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-4 [&_:focus-visible]:outline-[var(--studio-text)]",
     )
