@@ -319,15 +319,42 @@ def checkout_order(order: OrderView) -> rx.Component:
                     rx.cond(
                         CustomerState.qr_available,
                         rx.el.div(
-                            rx.el.img(
-                                src=rx.get_upload_url(
-                                    CustomerState.qr_image_path
+                            rx.el.div(
+                                rx.el.p(
+                                    "PAYEE · CONFIRM BEFORE PAYING",
+                                    class_name="text-xs tracking-[0.15em] text-gray-600",
                                 ),
-                                alt="Studio-provided UPI payment QR code",
-                                class_name="w-full max-w-64 aspect-square object-contain bg-white p-4 mx-auto",
+                                rx.el.h3(
+                                    "Sajin",
+                                    class_name="font-['Cormorant_Garamond'] text-4xl text-gray-900 mt-2",
+                                ),
+                                rx.el.p(
+                                    "psajin2001@okhdfcbank",
+                                    class_name="text-sm font-medium text-gray-900 break-all mt-2",
+                                ),
+                                rx.el.img(
+                                    src=rx.cond(
+                                        CustomerState.qr_image_path != "",
+                                        rx.get_upload_url(
+                                            CustomerState.qr_image_path
+                                        ),
+                                        CustomerState.qr_image_url,
+                                    ),
+                                    alt="UPI payment QR — confirm Sajin and psajin2001@okhdfcbank in your payment app",
+                                    class_name="w-full max-w-72 aspect-square object-contain bg-white mx-auto mt-5",
+                                ),
+                                rx.el.p(
+                                    rx.cond(
+                                        CustomerState.qr_image_path != "",
+                                        "Studio-uploaded QR override. Its encoded recipient is not verified by this site; stop and contact the studio if the payee differs from the details above.",
+                                        "Built-in UPI QR for Sajin. Enter only the amount agreed with the studio in your UPI app.",
+                                    ),
+                                    class_name="text-xs leading-6 text-gray-600 mt-4",
+                                ),
+                                class_name="bg-white text-gray-900 border border-gray-200 p-6 text-center",
                             ),
                             rx.el.p(
-                                "Verify the recipient in your UPI app before paying. Use only the quote agreed with the studio. This site does not initiate or verify UPI payments.",
+                                "Confirm the payee name Sajin and UPI ID psajin2001@okhdfcbank in your UPI app before paying. If either differs, do not pay; contact the studio. Use only the agreed quote. This site does not initiate or verify payments.",
                                 class_name="text-xs leading-6 text-[var(--studio-text)]/65 my-5",
                             ),
                             rx.cond(
@@ -368,11 +395,11 @@ def checkout_order(order: OrderView) -> rx.Component:
                                 class_name="h-10 w-10 text-[var(--studio-accent)]",
                             ),
                             rx.el.h3(
-                                "QR not configured yet",
+                                "Payment QR unavailable",
                                 class_name="font-['Cormorant_Garamond'] text-3xl mt-4",
                             ),
                             rx.el.p(
-                                "Your order is saved, but online payment is not ready. Do not pay using a substitute QR. Please contact the studio and return when its payment QR is available. No payment is claimed and proof submission is disabled.",
+                                "Your order is saved, but the payment QR could not be loaded. Refresh checkout or contact the studio before paying. Do not use a substitute QR. No payment is claimed and proof submission is disabled until the QR is available.",
                                 class_name="text-sm leading-7 text-[var(--studio-text)]/65 mt-4 mb-6",
                             ),
                             contact_links(),

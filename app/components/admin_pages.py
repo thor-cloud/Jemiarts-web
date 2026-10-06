@@ -179,7 +179,7 @@ def admin_picker(upload_id: str, target: str) -> rx.Component:
             rx.el.p(
                 rx.cond(
                     target == "payment-qr",
-                    "Choose the artist's real UPI QR PNG",
+                    "Choose an optional studio UPI QR PNG override",
                     "Choose one image",
                 ),
                 class_name="text-sm text-[var(--studio-text)]",
@@ -462,7 +462,7 @@ def settings_panel() -> rx.Component:
                     class_name="font-['Cormorant_Garamond'] text-3xl mt-10 mb-5",
                 ),
                 rx.el.p(
-                    "Upload your real artist-owned UPI QR as a PNG, then save site settings. No QR or recipient is generated here; this is not a payment integration. Customers must verify the recipient in their UPI app.",
+                    "Checkout automatically generates a scannable UPI QR for Sajin at psajin2001@okhdfcbank; no upload is required. To override it, upload your studio-owned QR as a PNG, then save site settings. A valid saved PNG takes priority; a missing or invalid saved image falls back to the built-in QR. Keep the override addressed to the same payee. PNG validation does not verify the encoded recipient or any payment. Customers must confirm the name and UPI ID in their UPI app, and you must review payment proof manually.",
                     class_name="text-sm leading-7 text-[var(--studio-text)]/65 mb-5",
                 ),
                 rx.cond(
@@ -473,7 +473,7 @@ def settings_panel() -> rx.Component:
                         class_name="w-full max-w-64 aspect-square object-contain bg-white p-4 mb-6",
                     ),
                     rx.el.p(
-                        "QR not configured yet. Checkout proof submission remains disabled until a valid QR is saved.",
+                        "No override image selected. Without a valid saved override, checkout uses the built-in QR for Sajin. Proof submission still requires a signed-in customer and their own order awaiting payment.",
                         class_name="text-sm leading-7 text-[var(--studio-accent)] mb-5",
                     ),
                 ),

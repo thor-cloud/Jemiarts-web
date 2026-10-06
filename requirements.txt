@@ -1,2 +1,4 @@
 
 reflex[db]==0.9.12
+qrcode[pil]
+pillow

@@ -126,6 +126,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
             checkout_orders=[],
             qr_available=False,
             qr_image_path="",
+            qr_image_url="",
             busy=False,
         )
         for name in (
@@ -134,6 +135,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
             "_view",
             "_repository_customer",
             "_load_payment_qr",
+            "_built_in_payment_qr",
         ):
             setattr(
                 state, name, MethodType(getattr(CustomerState, name), state)
@@ -186,22 +188,23 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         self.assertEqual(state.session_token, "")
         self.assertFalse(state.busy)
 
-    def test_missing_qr_blocks_server_side_proof_submission(self):
+    def test_missing_override_uses_fallback_but_requires_a_proof(self):
         state = self.state(token="valid")
         repository = Mock()
         repository.customer_order.return_value = {"status": "awaiting_payment"}
         state._repository_customer = Mock(return_value=(repository, {"id": 1}))
-        state._qr_exists = Mock(return_value=False)
+        repository.get_settings.return_value = {"payment_qr_path": ""}
         state.qr_available = True
         asyncio.run(CustomerState.upload_payment_proof.fn(state, []))
-        self.assertFalse(state.qr_available)
+        self.assertTrue(state.qr_available)
         self.assertEqual(state.qr_image_path, "")
+        self.assertTrue(state.qr_image_url.startswith("data:image/png;base64,"))
         repository.get_settings.assert_called_once_with()
-        self.assertIn("QR not configured", state.error)
+        self.assertIn("Select one payment screenshot", state.error)
         repository.save_upload.assert_not_called()
         repository.submit_payment_proof.assert_not_called()
 
-    def test_saved_qr_presence_check_fails_closed(self):
+    def test_saved_qr_priority_and_invalid_override_fallback(self):
         state = self.state()
         repository = Mock()
         with tempfile.TemporaryDirectory() as directory:
@@ -211,7 +214,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                     "payment_qr_path": "artist.png"
                 }
                 state._load_payment_qr(repository)
-                self.assertFalse(state.qr_available)
+                self.assertTrue(state.qr_available)
                 qr = root / "artist.png"
                 qr.touch()
                 state._load_payment_qr(repository)
@@ -247,7 +250,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
             "app.states.store_uploads.Path.is_file", side_effect=OSError
         ):
             state._load_payment_qr(repository)
-            self.assertFalse(state.qr_available)
+            self.assertTrue(state.qr_available)
             self.assertEqual(state.qr_image_path, "")
 
     def test_checkout_loads_saved_qr_and_rechecks_after_upload(self):
@@ -280,14 +283,23 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                 self.assertEqual(state.qr_image_path, "artist.png")
                 repository.get_settings.return_value = {"payment_qr_path": ""}
                 file = SimpleNamespace(close=AsyncMock())
+                repository.save_upload = AsyncMock(return_value="proof.png")
+                repository.submit_payment_proof.return_value = {
+                    **order,
+                    "status": "payment_review",
+                    "payment_proof_path": "proof.png",
+                }
                 asyncio.run(
                     CustomerState.upload_payment_proof.fn(state, [file])
                 )
-                repository.save_upload.assert_not_called()
-                repository.submit_payment_proof.assert_not_called()
+                repository.save_upload.assert_awaited_once()
+                repository.submit_payment_proof.assert_called_once_with(
+                    1, 42, "proof.png"
+                )
                 file.close.assert_awaited()
-                self.assertFalse(state.qr_available)
-                self.assertIn("QR not configured", state.error)
+                self.assertTrue(state.qr_available)
+                self.assertIn("not payment confirmation", state.notice)
+                repository.submit_payment_proof.reset_mock()
                 repository.get_settings.side_effect = [
                     {"payment_qr_path": "artist.png"},
                     {"payment_qr_path": ""},
@@ -297,8 +309,10 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                 asyncio.run(
                     CustomerState.upload_payment_proof.fn(state, [file])
                 )
-                repository.submit_payment_proof.assert_not_called()
-                self.assertFalse((root / "proof.png").exists())
+                repository.submit_payment_proof.assert_called_once_with(
+                    1, 42, "proof.png"
+                )
+                self.assertTrue((root / "proof.png").exists())
                 self.assertFalse(state.qr_available)
                 self.assertEqual(state.qr_image_path, "")
 
@@ -420,7 +434,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         checkout = (root / "components" / "customer_pages.py").read_text()
         self.assertIn(
-            "src=rx.get_upload_url(CustomerState.qr_image_path)", checkout
+            "rx.get_upload_url(CustomerState.qr_image_path)", checkout
         )
         self.assertNotIn("upi-qr.png", checkout)
         self.assertNotIn("placeholder.svg", checkout)

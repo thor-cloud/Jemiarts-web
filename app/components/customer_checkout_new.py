@@ -46,7 +46,7 @@ def checkout_steps() -> rx.Component:
                     class_name="text-sm font-medium text-[var(--studio-text)]",
                 ),
                 rx.el.p(
-                    "Use only the studio-uploaded QR below. Verify the recipient in your UPI app before paying the agreed quote.",
+                    "The default QR pays Sajin at psajin2001@okhdfcbank; a saved studio PNG overrides it. Confirm the name and UPI ID in your UPI app before paying the agreed quote. Stop if they differ.",
                     class_name="mt-2 text-xs leading-6 text-[var(--studio-text)]/65",
                 ),
             ),
@@ -140,7 +140,7 @@ def checkout_content() -> rx.Component:
                         class_name="h-5 w-5 shrink-0 text-[var(--studio-accent)]",
                     ),
                     rx.el.p(
-                        "Your saved order is shown below. Payment happens in your UPI app, not on this site. Proof uploads are available only for orders awaiting payment and only when the studio has a valid saved QR.",
+                        "Payment happens in your UPI app, not on this site. Checkout provides a built-in QR without studio setup, or a valid saved studio QR override. Proof uploads are available only for your orders awaiting payment when a QR is available. The studio reviews proof manually; this site does not initiate or verify payments.",
                         class_name="text-sm leading-7 text-[var(--studio-text)]/65",
                     ),
                     class_name="flex items-start gap-3 border-l-2 border-[var(--studio-accent)] pl-5 mb-8",

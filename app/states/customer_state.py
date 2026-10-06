@@ -1,6 +1,11 @@
 import reflex as rx
 import logging
 import time
+import base64
+import io
+from urllib.parse import urlencode
+
+import qrcode
 from typing import Any, TypedDict
 
 from app.states.store_models import Customer, Order
@@ -37,6 +42,7 @@ class CustomerState(rx.State):
     checkout_orders: list[OrderView] = []
     qr_available: bool = False
     qr_image_path: str = ""
+    qr_image_url: str = ""
     bouquet_id: int = 0
     bouquet_name: str = ""
     bouquet_price_paise: int = 0
@@ -62,6 +68,7 @@ class CustomerState(rx.State):
         self.checkout_orders = []
         self.qr_available = False
         self.qr_image_path = ""
+        self.qr_image_url = ""
         self.ready = False
 
     def _view(self, order: Order) -> OrderView:
@@ -104,17 +111,36 @@ class CustomerState(rx.State):
             provisional=portrait,
         )
 
+    def _built_in_payment_qr(self) -> str:
+        uri = f"upi://pay?{urlencode({'pa': 'psajin2001@okhdfcbank', 'pn': 'Sajin', 'cu': 'INR'})}"
+        qr = qrcode.QRCode(
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=9,
+            border=4,
+        )
+        qr.add_data(uri, optimize=0)
+        qr.make(fit=True)
+        with io.BytesIO() as output:
+            qr.make_image(fill_color="black", back_color="white").save(
+                output, format="PNG"
+            )
+            encoded = base64.b64encode(output.getvalue()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+
     def _load_payment_qr(self, repository: StoreRepository) -> None:
         self.qr_available = False
         self.qr_image_path = ""
+        self.qr_image_url = ""
         filename = repository.get_settings()["payment_qr_path"]
-        if not filename:
-            return
-        try:
-            self.qr_image_path = require_saved_png(filename)
-            self.qr_available = True
-        except (OSError, ValueError) as e:
-            logging.exception(f"Error: {e}")
+        if filename:
+            try:
+                self.qr_image_path = require_saved_png(filename)
+                self.qr_available = True
+                return
+            except (OSError, ValueError) as e:
+                logging.exception(f"Error: {e}")
+        self.qr_image_url = self._built_in_payment_qr()
+        self.qr_available = True
 
     def _remember_account_path(self):
         path = self.router.url.path.rstrip("/")
@@ -434,7 +460,7 @@ class CustomerState(rx.State):
             self._load_payment_qr(repository)
             if not self.qr_available:
                 raise ValueError(
-                    "QR not configured yet. Do not pay or submit proof until the studio configures checkout."
+                    "Payment QR unavailable. Refresh checkout or contact the studio before paying or submitting proof."
                 )
             if len(files) != 1:
                 raise ValueError("Select one payment screenshot first.")
@@ -442,7 +468,7 @@ class CustomerState(rx.State):
             self._load_payment_qr(repository)
             if not self.qr_available:
                 raise ValueError(
-                    "QR not configured yet. Do not pay or submit proof until the studio configures checkout."
+                    "Payment QR unavailable. Refresh checkout or contact the studio before paying or submitting proof."
                 )
             order = repository.submit_payment_proof(
                 customer["id"], order_id, filename

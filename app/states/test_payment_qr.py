@@ -1,6 +1,12 @@
 import reflex as rx
 import asyncio
+import base64
+import io
 import struct
+from urllib.parse import parse_qs, urlsplit
+
+import qrcode
+from PIL import Image
 import tempfile
 import unittest
 import zlib
@@ -9,6 +15,7 @@ from types import MethodType, SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app.states.admin_state import AdminState
+from app.states.customer_state import CustomerState
 from app.states.store_database import SCHEMA, connection, initialize_database
 from app.states.store_repository import StoreRepository
 from app.states.store_uploads import require_saved_png
@@ -176,6 +183,79 @@ class PaymentQRTests(unittest.TestCase):
                     )
                 )
             self.assertEqual(set(self.root.iterdir()), before)
+
+    def test_builtin_qr_exact_payload_png_contrast_and_quiet_zone(self):
+        state = SimpleNamespace()
+        with patch(
+            "app.states.customer_state.qrcode.QRCode", wraps=qrcode.QRCode
+        ) as factory:
+            url = CustomerState._built_in_payment_qr(state)
+        self.assertTrue(url.startswith("data:image/png;base64,"))
+        factory.assert_called_once_with(
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=9,
+            border=4,
+        )
+        expected = "upi://pay?pa=psajin2001%40okhdfcbank&pn=Sajin&cu=INR"
+        qr = qrcode.QRCode(
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=9,
+            border=4,
+        )
+        qr.add_data(expected, optimize=0)
+        qr.make(fit=True)
+        buffer = io.BytesIO()
+        qr.make_image(fill_color="black", back_color="white").save(
+            buffer, format="PNG"
+        )
+        png = base64.b64decode(url.split(",", 1)[1], validate=True)
+        self.assertEqual(png, buffer.getvalue())
+        self.assertEqual(
+            b"".join(segment.data for segment in qr.data_list).decode(),
+            expected,
+        )
+        parsed = urlsplit(expected)
+        self.assertEqual((parsed.scheme, parsed.netloc), ("upi", "pay"))
+        self.assertEqual(
+            parse_qs(parsed.query),
+            {"pa": ["psajin2001@okhdfcbank"], "pn": ["Sajin"], "cu": ["INR"]},
+        )
+        with Image.open(io.BytesIO(png)) as image:
+            image = image.convert("RGB")
+            self.assertEqual(set(image.getdata()), {(0, 0, 0), (255, 255, 255)})
+            width, height = image.size
+            self.assertEqual(width, height)
+            for box in (
+                (0, 0, width, 36),
+                (0, height - 36, width, height),
+                (0, 0, 36, height),
+                (width - 36, 0, width, height),
+            ):
+                self.assertEqual(
+                    set(image.crop(box).getdata()), {(255, 255, 255)}
+                )
+
+    def test_builtin_qr_regenerates_after_reload_without_saving_settings(self):
+        store, _, _ = self.accounts()
+        urls = []
+        for _ in range(2):
+            state = SimpleNamespace(
+                qr_available=False,
+                qr_image_path="",
+                qr_image_url="",
+            )
+            state._built_in_payment_qr = MethodType(
+                CustomerState._built_in_payment_qr, state
+            )
+            CustomerState._load_payment_qr(
+                state, StoreRepository(store.database_path)
+            )
+            self.assertTrue(state.qr_available)
+            self.assertEqual(state.qr_image_path, "")
+            urls.append(state.qr_image_url)
+        self.assertEqual(urls[0], urls[1])
+        self.assertEqual(store.get_settings()["payment_qr_path"], "")
+        self.assertEqual(list(self.root.glob("*.png")), [])
 
     def staging_state(self, store, actor):
         state = SimpleNamespace(
