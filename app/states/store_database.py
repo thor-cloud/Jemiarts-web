@@ -9,7 +9,7 @@ from collections.abc import Iterator
 LOCAL_DATABASE = (
     Path(__file__).resolve().parents[2] / ".local" / "artist_store.sqlite3"
 )
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS users (
@@ -69,6 +69,39 @@ SCHEMA = (
 )
 
 
+PORTRAIT_SCHEMA = (
+    """CREATE TABLE IF NOT EXISTS portrait_sizes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(name)) BETWEEN 1 AND 80),
+        dimensions TEXT NOT NULL CHECK(length(trim(dimensions)) BETWEEN 1 AND 120),
+        price_paise INTEGER NOT NULL CHECK(typeof(price_paise) = 'integer' AND price_paise BETWEEN 0 AND 1000000000)
+    )""",
+    """CREATE TABLE IF NOT EXISTS portrait_styles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(name)) BETWEEN 1 AND 80)
+    )""",
+)
+
+
+def migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
+    for statement in PORTRAIT_SCHEMA:
+        conn.execute(statement)
+    conn.executemany(
+        "INSERT INTO portrait_sizes(name, dimensions, price_paise) VALUES (?, ?, ?) ON CONFLICT(name) DO NOTHING",
+        (
+            ("A5", "14.8 × 21 cm", 90000),
+            ("A4", "21 × 29.7 cm", 150000),
+            ("A3", "29.7 × 42 cm", 250000),
+            ("A2", "42 × 59.4 cm", 400000),
+        ),
+    )
+    conn.executemany(
+        "INSERT INTO portrait_styles(name) VALUES (?) ON CONFLICT(name) DO NOTHING",
+        (("Water color",), ("Pencil color",)),
+    )
+    conn.execute("PRAGMA user_version = 3")
+
+
 @contextmanager
 def connection(
     database_path: Path = LOCAL_DATABASE,
@@ -107,7 +140,7 @@ def connection(
 def initialize_database(database_path: Path = LOCAL_DATABASE) -> None:
     with connection(database_path) as conn:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, SCHEMA_VERSION):
+        if version not in (0, 1, 2, SCHEMA_VERSION):
             raise RuntimeError(
                 "Unsupported SQLite schema version; migration required."
             )
@@ -133,4 +166,11 @@ def initialize_database(database_path: Path = LOCAL_DATABASE) -> None:
                 "Art made personal. Flowers made to keep.",
             ),
         )
-        conn.execute("PRAGMA user_version = 2")
+        if version < 2:
+            conn.execute("PRAGMA user_version = 2")
+            version = 2
+        if version == 2:
+            migrate_v2_to_v3(conn)
+        else:
+            for statement in PORTRAIT_SCHEMA:
+                conn.execute(statement)

@@ -2,13 +2,15 @@ import reflex as rx
 import logging
 from urllib.parse import quote
 
-from app.states.store_models import Bouquet, SiteSettings
+from app.states.store_models import (
+    Bouquet,
+    SiteSettings,
+    PortraitSize,
+    PortraitStyle,
+)
 from app.states.store_repository import StoreRepository
 from app.states.store_uploads import require_saved_upload
 from app.states.store_validation import color_value, phone_number
-
-
-PORTRAIT_STARTING_PRICES_PAISE: dict[str, int] = {"A4": 150000, "A3": 250000}
 
 
 class PublicState(rx.State):
@@ -30,7 +32,27 @@ class PublicState(rx.State):
     load_error: str = ""
     menu_open: bool = False
     active_page: str = "/"
-    portrait_size: str = "A4"
+    portrait_sizes: list[PortraitSize] = []
+    portrait_styles: list[PortraitStyle] = []
+    portrait_size_id: int = 0
+    portrait_style_id: int = 0
+    selection_notice: str = ""
+
+    def _refresh_portrait_options(self, repository: StoreRepository):
+        self.portrait_sizes = repository.list_portrait_sizes()
+        self.portrait_styles = repository.list_portrait_styles()
+        self.selection_notice = ""
+        if self.portrait_size_id and not any(
+            item["id"] == self.portrait_size_id for item in self.portrait_sizes
+        ):
+            self.portrait_size_id = 0
+            self.selection_notice = "Your selected size is no longer available. Please choose again."
+        if self.portrait_style_id and not any(
+            item["id"] == self.portrait_style_id
+            for item in self.portrait_styles
+        ):
+            self.portrait_style_id = 0
+            self.selection_notice = "Your selected style is no longer available. Please choose again."
 
     def _public_image(self, filename: str) -> str:
         if not filename:
@@ -66,18 +88,27 @@ class PublicState(rx.State):
                 )
             self.settings = settings
             self.bouquets = bouquets
+            self._refresh_portrait_options(repository)
         except (OSError, ValueError, RuntimeError, LookupError) as e:
             logging.exception(f"Error: {e}")
             self.load_error = (
                 "The studio could not be loaded. Please try again."
             )
             self.bouquets = []
+            self.portrait_sizes = []
+            self.portrait_styles = []
+            self.portrait_size_id = 0
+            self.portrait_style_id = 0
         except Exception as e:
             logging.exception(f"Error: {e}")
             self.load_error = (
                 "The studio could not be loaded. Please try again."
             )
             self.bouquets = []
+            self.portrait_sizes = []
+            self.portrait_styles = []
+            self.portrait_size_id = 0
+            self.portrait_style_id = 0
         finally:
             self.loading = False
 
@@ -86,21 +117,62 @@ class PublicState(rx.State):
         self.menu_open = not self.menu_open
 
     @rx.event
-    def choose_size(self, size: str):
-        if size in PORTRAIT_STARTING_PRICES_PAISE:
-            self.portrait_size = size
+    def choose_size(self, size_id: int):
+        try:
+            self._refresh_portrait_options(StoreRepository())
+            if type(size_id) is not int or not any(
+                item["id"] == size_id for item in self.portrait_sizes
+            ):
+                raise ValueError("This size is no longer available.")
+            self.portrait_size_id = (
+                0 if self.portrait_size_id == size_id else size_id
+            )
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            self.portrait_size_id = 0
+            self.selection_notice = (
+                "Size unavailable. Refresh the options and try again."
+            )
+
+    @rx.event
+    def choose_style(self, style_id: int):
+        try:
+            self._refresh_portrait_options(StoreRepository())
+            if type(style_id) is not int or not any(
+                item["id"] == style_id for item in self.portrait_styles
+            ):
+                raise ValueError("This style is no longer available.")
+            self.portrait_style_id = (
+                0 if self.portrait_style_id == style_id else style_id
+            )
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            self.portrait_style_id = 0
+            self.selection_notice = (
+                "Style unavailable. Refresh the options and try again."
+            )
 
     @rx.var
-    def a4_price(self) -> float:
-        return PORTRAIT_STARTING_PRICES_PAISE["A4"] / 100
-
-    @rx.var
-    def a3_price(self) -> float:
-        return PORTRAIT_STARTING_PRICES_PAISE["A3"] / 100
-
-    @rx.var
-    def portrait_price(self) -> float:
-        return PORTRAIT_STARTING_PRICES_PAISE[self.portrait_size] / 100
+    def portrait_selection(self) -> str:
+        size = next(
+            (
+                item
+                for item in self.portrait_sizes
+                if item["id"] == self.portrait_size_id
+            ),
+            None,
+        )
+        style = next(
+            (
+                item
+                for item in self.portrait_styles
+                if item["id"] == self.portrait_style_id
+            ),
+            None,
+        )
+        if size is None or style is None:
+            return "Choose a size and art style to begin."
+        return f"Selected: {size['name']} · {style['name']} · provisional ₹{size['price_paise'] / 100:,.2f}"
 
     @rx.var
     def whatsapp_url(self) -> str:

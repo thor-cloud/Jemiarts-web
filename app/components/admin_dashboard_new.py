@@ -10,6 +10,7 @@ from app.components.admin_pages import (
 from app.components.customer_pages import page_heading
 from app.components.public_layout import action_link, public_layout
 from app.states.admin_state import AdminState
+from app.components.portrait_options import portrait_options_panel
 
 
 __all__ = ["new_admin_dashboard_page"]
@@ -130,12 +131,14 @@ def authorized_workspace() -> rx.Component:
         rx.el.nav(
             action_link("Review orders", "#admin-orders"),
             action_link("Curate bouquets", "#admin-bouquets"),
+            action_link("Portrait options", "#admin-portraits"),
             action_link("Site settings & QR", "#admin-settings"),
             aria_label="Workspace sections",
             class_name="flex flex-wrap gap-3 mb-12",
         ),
         workspace_orders(),
         bouquet_panel(),
+        portrait_options_panel(),
         settings_panel(),
         class_name="w-full min-w-0",
     )

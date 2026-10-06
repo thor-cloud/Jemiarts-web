@@ -3,7 +3,13 @@ import logging
 from typing import Any, TypedDict, cast
 from urllib.parse import quote
 
-from app.states.store_models import Bouquet, OrderStatus, SiteSettings
+from app.states.store_models import (
+    Bouquet,
+    OrderStatus,
+    SiteSettings,
+    PortraitSize,
+    PortraitStyle,
+)
 from app.states.store_repository import StoreRepository
 from app.states.store_uploads import (
     require_saved_upload,
@@ -35,6 +41,11 @@ class AdminState(rx.State):
     notice: str = ""
     orders: list[AdminOrder] = []
     bouquets: list[Bouquet] = []
+    portrait_sizes: list[PortraitSize] = []
+    portrait_styles: list[PortraitStyle] = []
+    delete_kind: str = ""
+    delete_id: int = 0
+    delete_name: str = ""
     bouquet_id: int = 0
     bouquet_name: str = ""
     bouquet_price: str = ""
@@ -70,6 +81,9 @@ class AdminState(rx.State):
         self.allowed = False
         self.orders = []
         self.bouquets = []
+        self.portrait_sizes = []
+        self.portrait_styles = []
+        self.delete_id = 0
         self.error = "Administrator access is required. Sign in with the studio owner's account."
 
     def _image(self, filename: str) -> str:
@@ -86,7 +100,7 @@ class AdminState(rx.State):
         for order in repository.list_orders(actor, all_customers=True):
             customer = repository.get_customer(actor, order["user_id"])
             title = (
-                f"{order['details'].get('size', 'Custom')} portrait"
+                f"{order['details'].get('size', 'Custom')} portrait · {order['details'].get('style', 'Style not recorded')}"
                 if order["kind"] == "portrait"
                 else order["details"].get("model_name", "Bouquet")
             )
@@ -120,6 +134,11 @@ class AdminState(rx.State):
     async def load_admin(self):
         self.ready = False
         self.allowed = False
+        self.bouquets = []
+        self.portrait_sizes = []
+        self.portrait_styles = []
+        self.delete_id = 0
+        self.delete_kind = ""
         self.orders = []
         self.error = ""
         self.notice = ""
@@ -135,6 +154,8 @@ class AdminState(rx.State):
             repository, actor = await self._authorized()
             self._load_orders(repository, actor)
             self.bouquets = repository.list_bouquets()
+            self.portrait_sizes = repository.list_portrait_sizes()
+            self.portrait_styles = repository.list_portrait_styles()
             self.settings = repository.get_settings()
             self.hero_image = self._image(
                 self._hero_upload or self.settings["hero_image_path"]
@@ -327,6 +348,134 @@ class AdminState(rx.State):
         except Exception as e:
             logging.exception(f"Error: {e}")
             self.error = "Bouquet could not be saved. Your uploaded image is retained for retry."
+        finally:
+            self.busy = False
+
+    @rx.event
+    async def save_portrait_option(
+        self, kind: str, option_id: int, form_data: dict[str, Any]
+    ):
+        if self.busy:
+            return
+        self.busy = True
+        self.error = ""
+        self.notice = ""
+        yield
+        try:
+            repository, actor = await self._authorized()
+            if type(option_id) is not int or option_id < 0:
+                raise ValueError("Invalid option ID.")
+            if kind == "size":
+                repository.save_portrait_size(
+                    actor,
+                    str(form_data.get("name", "")),
+                    str(form_data.get("dimensions", "")),
+                    rupees_to_paise(str(form_data.get("price", ""))),
+                    option_id or None,
+                )
+            elif kind == "style":
+                repository.save_portrait_style(
+                    actor, str(form_data.get("name", "")), option_id or None
+                )
+            else:
+                raise ValueError("Unknown option type.")
+            self.portrait_sizes = repository.list_portrait_sizes()
+            self.portrait_styles = repository.list_portrait_styles()
+            self.notice = "Portrait option published. Existing orders keep their saved labels and prices."
+            from app.states.public_state import PublicState
+
+            public = await self.get_state(PublicState)
+            public._refresh_portrait_options(repository)
+        except PermissionError as e:
+            logging.exception(f"Error: {e}")
+            self._deny()
+        except (ValueError, LookupError) as e:
+            logging.exception(f"Error: {e}")
+            self.error = str(e)
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            self.error = "Portrait option could not be saved. Please retry."
+        finally:
+            self.busy = False
+
+    @rx.event
+    async def request_portrait_delete(self, kind: str, option_id: int):
+        if self.busy:
+            return
+        try:
+            repository, _ = await self._authorized()
+            if kind not in ("size", "style") or type(option_id) is not int:
+                raise ValueError("Invalid portrait option.")
+            options = (
+                repository.list_portrait_sizes()
+                if kind == "size"
+                else repository.list_portrait_styles()
+            )
+            option = next(
+                (item for item in options if item["id"] == option_id), None
+            )
+            if option is None:
+                raise LookupError(
+                    "Option is no longer available. Refresh the workspace."
+                )
+            self.delete_kind = kind
+            self.delete_id = option_id
+            self.delete_name = option["name"]
+        except PermissionError as e:
+            logging.exception(f"Error: {e}")
+            self._deny()
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            self.error = str(e)
+
+    @rx.event
+    async def cancel_portrait_delete(self):
+        if self.busy:
+            return
+        try:
+            await self._authorized()
+            self.delete_id = 0
+            self.delete_kind = ""
+        except PermissionError as e:
+            logging.exception(f"Error: {e}")
+            self._deny()
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            self.error = "Could not refresh access. Please retry."
+
+    @rx.event
+    async def confirm_portrait_delete(self):
+        if self.busy:
+            return
+        self.busy = True
+        self.error = ""
+        self.notice = ""
+        yield
+        try:
+            repository, actor = await self._authorized()
+            repository.delete_portrait_option(
+                actor, self.delete_kind, self.delete_id
+            )
+            self.delete_id = 0
+            self.delete_kind = ""
+            self.portrait_sizes = repository.list_portrait_sizes()
+            self.portrait_styles = repository.list_portrait_styles()
+            from app.states.public_state import PublicState
+
+            public = await self.get_state(PublicState)
+            public._refresh_portrait_options(repository)
+            self.notice = (
+                "Portrait option removed. Historical orders are unchanged."
+            )
+        except PermissionError as e:
+            logging.exception(f"Error: {e}")
+            self._deny()
+        except (ValueError, LookupError) as e:
+            logging.exception(f"Error: {e}")
+            self.error = str(e)
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            self.error = "Option could not be removed. Please retry."
         finally:
             self.busy = False
 

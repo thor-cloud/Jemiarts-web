@@ -74,7 +74,7 @@ class CustomerState(rx.State):
     def _view(self, order: Order) -> OrderView:
         portrait = order["kind"] == "portrait"
         title = (
-            f"{order['details'].get('size', 'Custom')} portrait"
+            f"{order['details'].get('size', 'Custom')} portrait · {order['details'].get('style', 'Style not recorded')}"
             if portrait
             else order["details"].get(
                 "model_name", f"Bouquet model {order['bouquet_id']}"
@@ -387,27 +387,21 @@ class CustomerState(rx.State):
                 self._clear_identity()
                 self._next_path = "/portraits"
                 return rx.redirect("/login")
-            from app.states.public_state import (
-                PublicState,
-                PORTRAIT_STARTING_PRICES_PAISE,
-            )
+            from app.states.public_state import PublicState
 
             public = await self.get_state(PublicState)
-            size = public.portrait_size
-            if size not in PORTRAIT_STARTING_PRICES_PAISE:
-                raise ValueError("Choose A4 or A3.")
             if len(files) != 1:
                 invalid_reference_count = True
                 raise ValueError("Select one reference image before ordering.")
+            if not public.portrait_size_id or not public.portrait_style_id:
+                raise ValueError("Choose an available portrait size and style.")
             filename = await repository.save_upload(customer["id"], files[0])
             order = repository.create_order(
                 customer["id"],
                 "portrait",
-                {
-                    "size": size,
-                    "pricing": "Provisional example, not artist-confirmed",
-                },
-                portrait_price_paise=PORTRAIT_STARTING_PRICES_PAISE[size],
+                {},
+                portrait_size_id=public.portrait_size_id,
+                portrait_style_id=public.portrait_style_id,
                 reference_upload_path=filename,
             )
             committed = True
@@ -415,10 +409,16 @@ class CustomerState(rx.State):
                 rx.clear_selected_files("portrait-reference"),
                 rx.redirect(f"/checkout?order={order['id']}"),
             ]
-        except ValueError as e:
+        except (ValueError, LookupError) as e:
             if not invalid_reference_count:
                 logging.exception(f"Error: {e}")
             self.error = str(e)
+            if isinstance(e, LookupError):
+                try:
+                    public = await self.get_state(PublicState)
+                    public._refresh_portrait_options(repository)
+                except Exception as refresh_error:
+                    logging.exception(f"Error: {refresh_error}")
         except Exception as e:
             logging.exception(f"Error: {e}")
             self.error = (

@@ -5,6 +5,7 @@ from app.components.customer_forms import bouquet_order_panel, feedback
 from app.states.customer_state import CustomerState
 from app.components.public_layout import action_link, public_layout
 from app.states.public_state import PublicState
+from app.states.store_models import PortraitSize, PortraitStyle
 
 
 def home_hero() -> rx.Component:
@@ -121,7 +122,7 @@ def studio_paths() -> rx.Component:
                     class_name="font-['Cormorant_Garamond'] text-3xl mt-7",
                 ),
                 rx.el.p(
-                    "Choose an A4 or A3 portrait and prepare a reference photograph of someone special.",
+                    "Choose from the studio’s current portrait sizes and art styles, and prepare a photograph of someone special.",
                     class_name="mt-3 text-sm leading-6 text-[var(--studio-text)]/65",
                 ),
                 rx.el.span(
@@ -211,12 +212,15 @@ def bouquets_page() -> rx.Component:
     )
 
 
-def size_card(size: str, dimensions: str, price: float) -> rx.Component:
+def size_card(size: PortraitSize) -> rx.Component:
     return rx.el.button(
         rx.el.div(
-            rx.el.span(size, class_name="font-['Cormorant_Garamond'] text-4xl"),
+            rx.el.span(
+                size["name"],
+                class_name="font-['Cormorant_Garamond'] text-4xl break-words",
+            ),
             rx.cond(
-                PublicState.portrait_size == size,
+                PublicState.portrait_size_id == size["id"],
                 rx.icon(
                     "circle-check",
                     class_name="h-5 w-5 text-[var(--studio-accent)]",
@@ -228,20 +232,57 @@ def size_card(size: str, dimensions: str, price: float) -> rx.Component:
             class_name="flex items-center justify-between",
         ),
         rx.el.p(
-            dimensions, class_name="mt-2 text-xs text-[var(--studio-text)]/60"
+            size["dimensions"],
+            class_name="mt-2 text-xs text-[var(--studio-text)]/60",
         ),
-        rx.el.p(f"From ₹{price:,.2f}", class_name="mt-6 text-sm font-medium"),
+        rx.el.p(
+            f"From ₹{size['price_paise'] / 100:,.2f}",
+            class_name="mt-6 text-sm font-medium",
+        ),
         rx.el.p(
             "Provisional example",
             class_name="mt-1 text-[11px] text-[var(--studio-text)]/55",
         ),
-        on_click=lambda: PublicState.choose_size(size),
+        on_click=lambda: PublicState.choose_size(size["id"]),
+        key=size["id"],
+        disabled=CustomerState.busy | PublicState.loading,
         type="button",
-        aria_pressed=PublicState.portrait_size == size,
+        aria_pressed=PublicState.portrait_size_id == size["id"],
         class_name=rx.cond(
-            PublicState.portrait_size == size,
+            PublicState.portrait_size_id == size["id"],
             "w-full text-left border border-[var(--studio-accent)] bg-[var(--studio-accent)]/7 text-[var(--studio-text)] p-6 focus-visible:outline-2 focus-visible:outline-offset-4",
             "w-full text-left border border-[var(--studio-text)]/20 bg-transparent text-[var(--studio-text)] p-6 hover:border-[var(--studio-accent)] focus-visible:outline-2 focus-visible:outline-offset-4",
+        ),
+    )
+
+
+def style_card(style: PortraitStyle) -> rx.Component:
+    return rx.el.button(
+        rx.icon(
+            "paintbrush",
+            class_name="h-5 w-5 shrink-0 text-[var(--studio-accent)]",
+        ),
+        rx.el.span(style["name"], class_name="text-sm break-words"),
+        rx.cond(
+            PublicState.portrait_style_id == style["id"],
+            rx.icon(
+                "circle-check",
+                class_name="h-5 w-5 ml-auto text-[var(--studio-accent)]",
+            ),
+            rx.icon(
+                "circle",
+                class_name="h-5 w-5 ml-auto text-[var(--studio-text)]/30",
+            ),
+        ),
+        on_click=lambda: PublicState.choose_style(style["id"]),
+        key=style["id"],
+        type="button",
+        disabled=CustomerState.busy | PublicState.loading,
+        aria_pressed=PublicState.portrait_style_id == style["id"],
+        class_name=rx.cond(
+            PublicState.portrait_style_id == style["id"],
+            "w-full flex items-center gap-3 p-5 border border-[var(--studio-accent)] bg-[var(--studio-accent)]/7 text-[var(--studio-text)] focus-visible:outline-2",
+            "w-full flex items-center gap-3 p-5 border border-[var(--studio-text)]/20 bg-transparent text-[var(--studio-text)] hover:border-[var(--studio-accent)] focus-visible:outline-2",
         ),
     )
 
@@ -249,7 +290,7 @@ def size_card(size: str, dimensions: str, price: float) -> rx.Component:
 def reference_entry() -> rx.Component:
     return rx.el.section(
         rx.el.h2(
-            "02 / Prepare your reference", class_name="text-sm font-medium mb-4"
+            "03 / Prepare your reference", class_name="text-sm font-medium mb-4"
         ),
         rx.upload.root(
             rx.el.div(
@@ -324,7 +365,7 @@ def portraits_page() -> rx.Component:
                     class_name="font-['Cormorant_Garamond'] text-5xl md:text-6xl font-medium leading-tight whitespace-pre-line",
                 ),
                 rx.el.p(
-                    "Turn a favourite photograph into a personal portrait. Choose a size and upload your reference to create an order. The artist must still confirm the final quote.",
+                    "Turn a favourite photograph into a personal portrait. Choose a size and art style, then upload your reference to create an order. The artist must still confirm the final quote.",
                     class_name="text-base leading-7 text-[var(--studio-text)]/65 mt-6 max-w-xl",
                 ),
                 class_name="pt-14 md:pt-20 pb-12",
@@ -341,7 +382,7 @@ def portraits_page() -> rx.Component:
                             class_name="font-['Cormorant_Garamond'] text-4xl md:text-5xl whitespace-pre-line text-center leading-tight",
                         ),
                         rx.el.p(
-                            "A4 / A3",
+                            "YOUR SIZE. YOUR STYLE.",
                             class_name="mt-8 text-xs tracking-[0.3em] text-[var(--studio-accent)]",
                         ),
                         class_name="aspect-[4/5] max-h-[540px] flex flex-col items-center justify-center border border-[var(--studio-accent)]/20 bg-[var(--studio-accent)]/7 p-8",
@@ -363,20 +404,75 @@ def portraits_page() -> rx.Component:
                         "01 / Choose your size",
                         class_name="text-sm font-medium mb-4",
                     ),
-                    rx.el.div(
-                        size_card("A4", "21 × 29.7 cm", PublicState.a4_price),
-                        size_card("A3", "29.7 × 42 cm", PublicState.a3_price),
-                        class_name="grid sm:grid-cols-2 gap-4",
+                    rx.el.button(
+                        rx.icon("refresh-cw", class_name="h-4 w-4"),
+                        "Refresh portrait options",
+                        on_click=PublicState.load_public,
+                        disabled=CustomerState.busy | PublicState.loading,
+                        type="button",
+                        class_name="flex items-center gap-2 mb-4 text-xs text-[var(--studio-accent)] hover:underline",
+                    ),
+                    rx.cond(
+                        PublicState.loading,
+                        rx.el.div(
+                            role="status",
+                            aria_label="Loading portrait options",
+                            class_name="h-40 animate-pulse bg-[var(--studio-text)]/5",
+                        ),
+                        rx.cond(
+                            PublicState.portrait_sizes.length() > 0,
+                            rx.el.div(
+                                rx.foreach(
+                                    PublicState.portrait_sizes, size_card
+                                ),
+                                class_name="grid sm:grid-cols-2 gap-4",
+                            ),
+                            rx.el.p(
+                                "No portrait sizes are available. Please contact the studio or refresh later.",
+                                class_name="border border-[var(--studio-text)]/20 p-5 text-sm text-[var(--studio-text)]/65",
+                            ),
+                        ),
+                    ),
+                    rx.el.h2(
+                        "02 / Choose your art style",
+                        class_name="text-sm font-medium mt-8 mb-4",
+                    ),
+                    rx.cond(
+                        PublicState.portrait_styles.length() > 0,
+                        rx.el.div(
+                            rx.foreach(PublicState.portrait_styles, style_card),
+                            class_name="grid sm:grid-cols-2 gap-4",
+                        ),
+                        rx.el.p(
+                            "No art styles are currently available. Portrait booking is paused until options are published.",
+                            class_name="border border-[var(--studio-text)]/20 p-5 text-sm text-[var(--studio-text)]/65",
+                        ),
+                    ),
+                    rx.cond(
+                        PublicState.selection_notice != "",
+                        rx.el.p(
+                            PublicState.selection_notice,
+                            role="status",
+                            class_name="mt-4 text-sm text-[var(--studio-accent)]",
+                        ),
+                    ),
+                    rx.cond(
+                        PublicState.load_error != "",
+                        rx.el.p(
+                            PublicState.load_error,
+                            role="alert",
+                            class_name="mt-4 text-sm text-red-500",
+                        ),
                     ),
                     rx.el.p(
-                        "These are provisional example prices, not artist-confirmed rates. Your order saves this provisional amount. Contact the studio to confirm the final price, style, number of subjects and timing before paying.",
+                        "These are provisional prices, not artist-confirmed rates. Your order saves the current size price and selected labels at submission. Contact the studio to confirm the final price, style, number of subjects and timing before paying.",
                         class_name="mt-4 text-xs leading-6 text-[var(--studio-text)]/60",
                     ),
                     reference_entry(),
                     feedback(),
                     rx.el.div(
                         rx.el.p(
-                            f"Selected: {PublicState.portrait_size} · example from ₹{PublicState.portrait_price:,.2f}",
+                            PublicState.portrait_selection,
                             class_name="text-sm text-[var(--studio-text)]/70 mb-4",
                         ),
                         rx.el.button(
@@ -393,14 +489,19 @@ def portraits_page() -> rx.Component:
                                 rx.selected_files("portrait-reference").length()
                                 != 1
                             )
-                            | CustomerState.busy,
+                            | CustomerState.busy
+                            | PublicState.loading
+                            | (PublicState.portrait_size_id == 0)
+                            | (PublicState.portrait_style_id == 0)
+                            | (PublicState.portrait_sizes.length() == 0)
+                            | (PublicState.portrait_styles.length() == 0),
                             aria_describedby="portrait-order-help",
                             aria_busy=CustomerState.busy,
                             type="button",
                             class_name="w-full flex items-center justify-center gap-4 bg-[var(--studio-accent)] text-[var(--studio-bg)] px-6 py-4 text-sm font-medium enabled:hover:opacity-85 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-4",
                         ),
                         rx.el.p(
-                            "Choose one reference photo before ordering.",
+                            "Choose a size, art style and one reference photo before ordering.",
                             id="portrait-order-help",
                             class_name="text-xs text-[var(--studio-text)]/70 mt-3",
                         ),

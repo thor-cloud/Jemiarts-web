@@ -66,7 +66,8 @@ class CustomerIntegrationTests(unittest.TestCase):
             self.customer["id"],
             "portrait",
             {"size": "A4"},
-            portrait_price_paise=150000,
+            portrait_size_id=self.repository.list_portrait_sizes()[1]["id"],
+            portrait_style_id=self.repository.list_portrait_styles()[0]["id"],
             reference_upload_path="reference.png",
         )
         with patch.object(rx, "get_upload_dir", return_value=self.root):
@@ -327,7 +328,9 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                     return_value=(repository, {"id": 1})
                 )
                 state.get_state = AsyncMock(
-                    return_value=SimpleNamespace(portrait_size="A4")
+                    return_value=SimpleNamespace(
+                        portrait_size_id=2, portrait_style_id=1
+                    )
                 )
                 files = [
                     SimpleNamespace(close=AsyncMock()) for _ in range(count)
@@ -373,7 +376,9 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         repository.create_order.side_effect = RuntimeError("Save failed")
         state._repository_customer = Mock(return_value=(repository, {"id": 1}))
         state.get_state = AsyncMock(
-            return_value=SimpleNamespace(portrait_size="A4")
+            return_value=SimpleNamespace(
+                portrait_size_id=2, portrait_style_id=1
+            )
         )
         file = SimpleNamespace(close=AsyncMock())
         saved_file = Mock()
@@ -415,16 +420,22 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         guard = props["disabled"]
         self.assertIsInstance(guard, ast.BinOp)
         self.assertIsInstance(guard.op, ast.BitOr)
-        self.assertEqual(
-            ast.unparse(guard.left),
+        guard_source = ast.unparse(guard)
+        self.assertIn(
             "rx.selected_files('portrait-reference').length() != 1",
+            guard_source,
         )
-        self.assertEqual(ast.unparse(guard.right), "CustomerState.busy")
+        self.assertIn("CustomerState.busy", guard_source)
+        self.assertIn("PublicState.portrait_size_id == 0", guard_source)
+        self.assertIn("PublicState.portrait_style_id == 0", guard_source)
         self.assertEqual(
             ast.literal_eval(props["aria_describedby"]), "portrait-order-help"
         )
         self.assertIn('id="portrait-order-help"', source)
-        self.assertIn("Choose one reference photo before ordering.", source)
+        self.assertIn(
+            "Choose a size, art style and one reference photo before ordering.",
+            source,
+        )
         self.assertIn(
             "rx.upload_files(upload_id='portrait-reference')",
             ast.unparse(props["on_click"]),

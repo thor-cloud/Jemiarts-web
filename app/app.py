@@ -46,7 +46,7 @@ app.add_page(
 app.add_page(
     portraits_page,
     route="/portraits",
-    title="Personal Portraits · A4 & A3",
+    title="Personal Portraits · Sizes & Art Styles",
     on_load=[PublicState.load_public, CustomerState.restore],
 )
 app.add_page(

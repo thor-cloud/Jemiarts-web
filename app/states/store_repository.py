@@ -22,6 +22,8 @@ from app.states.store_models import (
     OrderKind,
     OrderStatus,
     SiteSettings,
+    PortraitSize,
+    PortraitStyle,
 )
 from app.states.store_uploads import (
     save_image_upload,
@@ -363,6 +365,129 @@ class StoreRepository:
                 ).fetchone()
             )
 
+    def list_portrait_sizes(self) -> list[PortraitSize]:
+        with connection(self.database_path) as conn:
+            return [
+                PortraitSize(
+                    id=row["id"],
+                    name=row["name"],
+                    dimensions=row["dimensions"],
+                    price_paise=row["price_paise"],
+                )
+                for row in conn.execute(
+                    "SELECT * FROM portrait_sizes ORDER BY id"
+                )
+            ]
+
+    def list_portrait_styles(self) -> list[PortraitStyle]:
+        with connection(self.database_path) as conn:
+            return [
+                PortraitStyle(id=row["id"], name=row["name"])
+                for row in conn.execute(
+                    "SELECT * FROM portrait_styles ORDER BY id"
+                )
+            ]
+
+    def _save_portrait_option(
+        self,
+        actor_id: int,
+        kind: str,
+        name: str,
+        option_id: int | None,
+        dimensions: str = "",
+        price_paise: int = 0,
+    ) -> int:
+        table = {"size": "portrait_sizes", "style": "portrait_styles"}.get(kind)
+        if table is None:
+            raise ValueError("Unknown portrait option type.")
+        try:
+            with connection(self.database_path) as conn:
+                self._require_admin(conn, actor_id)
+                name = text(name, "Option name", 80)
+                if option_id is not None:
+                    positive_id(option_id)
+                    if (
+                        conn.execute(
+                            f"SELECT id FROM {table} WHERE id = ?", (option_id,)
+                        ).fetchone()
+                        is None
+                    ):
+                        raise LookupError(
+                            "Portrait option no longer available."
+                        )
+                duplicate = conn.execute(
+                    f"SELECT id FROM {table} WHERE name = ? COLLATE NOCASE",
+                    (name,),
+                ).fetchone()
+                if duplicate is not None and duplicate["id"] != option_id:
+                    raise ValueError("An option with this name already exists.")
+                if kind == "size":
+                    values = (
+                        name,
+                        text(dimensions, "Dimensions", 120),
+                        price_value(price_paise),
+                    )
+                    if option_id is None:
+                        cursor = conn.execute(
+                            "INSERT INTO portrait_sizes(name, dimensions, price_paise) VALUES (?, ?, ?)",
+                            values,
+                        )
+                    else:
+                        cursor = conn.execute(
+                            "UPDATE portrait_sizes SET name = ?, dimensions = ?, price_paise = ? WHERE id = ?",
+                            (*values, option_id),
+                        )
+                elif option_id is None:
+                    cursor = conn.execute(
+                        "INSERT INTO portrait_styles(name) VALUES (?)", (name,)
+                    )
+                else:
+                    cursor = conn.execute(
+                        "UPDATE portrait_styles SET name = ? WHERE id = ?",
+                        (name, option_id),
+                    )
+                return (
+                    option_id
+                    if option_id is not None
+                    else int(cursor.lastrowid)
+                )
+        except sqlite3.IntegrityError as e:
+            logging.exception(f"Error: {e}")
+            raise ValueError(
+                "Portrait option is invalid or its name is already in use."
+            ) from e
+
+    def save_portrait_size(
+        self,
+        actor_id: int,
+        name: str,
+        dimensions: str,
+        price_paise: int,
+        size_id: int | None = None,
+    ) -> int:
+        return self._save_portrait_option(
+            actor_id, "size", name, size_id, dimensions, price_paise
+        )
+
+    def save_portrait_style(
+        self, actor_id: int, name: str, style_id: int | None = None
+    ) -> int:
+        return self._save_portrait_option(actor_id, "style", name, style_id)
+
+    def delete_portrait_option(
+        self, actor_id: int, kind: str, option_id: int
+    ) -> None:
+        table = {"size": "portrait_sizes", "style": "portrait_styles"}.get(kind)
+        if table is None:
+            raise ValueError("Unknown portrait option type.")
+        with connection(self.database_path) as conn:
+            self._require_admin(conn, actor_id)
+            cursor = conn.execute(
+                f"DELETE FROM {table} WHERE id = ?", (positive_id(option_id),)
+            )
+            if cursor.rowcount != 1:
+                raise LookupError("Portrait option no longer available.")
+
     def create_order(
         self,
         actor_id: int,
@@ -372,9 +497,11 @@ class StoreRepository:
         bouquet_id: int | None = None,
         portrait_price_paise: int | None = None,
         reference_upload_path: str = "",
+        portrait_size_id: int | None = None,
+        portrait_style_id: int | None = None,
     ) -> Order:
         actor_id, quantity = positive_id(actor_id), quantity_value(quantity)
-        payload = json.dumps(order_details(details), ensure_ascii=False)
+        snapshot = order_details(details)
         reference = upload_path(reference_upload_path)
         with connection(self.database_path) as conn:
             if (
@@ -397,13 +524,39 @@ class StoreRepository:
                     raise LookupError("Bouquet not found.")
                 unit_price = row["price_paise"]
             elif kind == "portrait":
-                if bouquet_id is not None or portrait_price_paise is None:
+                if bouquet_id is not None or portrait_price_paise is not None:
                     raise ValueError(
-                        "Portrait orders require a trusted server-side price."
+                        "Portrait prices must come from current saved size options."
                     )
-                unit_price = price_value(portrait_price_paise)
+                if portrait_size_id is None or portrait_style_id is None:
+                    raise ValueError(
+                        "Choose an available portrait size and style."
+                    )
+                size = conn.execute(
+                    "SELECT * FROM portrait_sizes WHERE id = ?",
+                    (positive_id(portrait_size_id),),
+                ).fetchone()
+                style = conn.execute(
+                    "SELECT * FROM portrait_styles WHERE id = ?",
+                    (positive_id(portrait_style_id),),
+                ).fetchone()
+                if size is None or style is None:
+                    raise LookupError(
+                        "Selected portrait size or style is no longer available. Refresh and choose again."
+                    )
+                unit_price = size["price_paise"]
+                snapshot.update(
+                    size=size["name"],
+                    style=style["name"],
+                    dimensions=size["dimensions"],
+                    size_id=str(size["id"]),
+                    style_id=str(style["id"]),
+                    price_paise=str(unit_price),
+                    pricing="Provisional, not artist-confirmed",
+                )
             else:
                 raise ValueError("Unknown order type.")
+            payload = json.dumps(snapshot, ensure_ascii=False)
             cursor = conn.execute(
                 """INSERT INTO orders(user_id, kind, bouquet_id, details, quantity,
                 unit_price_paise, total_price_paise, reference_upload_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",

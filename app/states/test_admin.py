@@ -78,7 +78,8 @@ class AdminTests(unittest.TestCase):
             customer["id"],
             "portrait",
             {"size": "A4"},
-            portrait_price_paise=150000,
+            portrait_size_id=self.store.list_portrait_sizes()[1]["id"],
+            portrait_style_id=self.store.list_portrait_styles()[0]["id"],
         )
         with self.assertRaises(ValueError):
             self.store.set_order_status(admin["id"], order["id"], "completed")

@@ -35,6 +35,16 @@ class Bouquet(TypedDict):
     updated_at: str
 
 
+class PortraitStyle(TypedDict):
+    id: int
+    name: str
+
+
+class PortraitSize(PortraitStyle):
+    dimensions: str
+    price_paise: int
+
+
 class Order(TypedDict):
     id: int
     user_id: int
