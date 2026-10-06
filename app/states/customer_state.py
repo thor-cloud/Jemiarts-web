@@ -240,7 +240,8 @@ class CustomerState(rx.State):
                     str(form_data.get("identifier", "")), password
                 )
                 if customer is None:
-                    raise ValueError("Phone/email or password is incorrect.")
+                    self.error = "Phone/email or password is incorrect."
+                    return
             repository.revoke_session(self.session_token)
             self.session_token = repository.create_session(customer["id"])
             self._actor_id = customer["id"]
