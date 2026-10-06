@@ -11,6 +11,7 @@ from app.states.customer_state import CustomerState
 
 from app.states.store_repository import StoreRepository
 from app.states.store_database import connection
+from app.states.private_files import private_file
 from app.states.test_payment_qr import png_test_image
 
 
@@ -81,7 +82,9 @@ class CustomerIntegrationTests(unittest.TestCase):
                 ],
                 "awaiting_payment",
             )
-            (self.root / "proof.png").write_bytes(b"saved image")
+            private_file(
+                "proof.png", self.repository.database_path
+            ).write_bytes(b"saved image")
             with self.assertRaises(PermissionError):
                 self.repository.customer_order(self.other["id"], order["id"])
             with self.assertRaises(PermissionError):
@@ -374,6 +377,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         repository = Mock()
         repository.save_upload = AsyncMock(return_value="reference.png")
         repository.create_order.side_effect = RuntimeError("Save failed")
+        repository.database_path = Path("test.sqlite3")
         state._repository_customer = Mock(return_value=(repository, {"id": 1}))
         state.get_state = AsyncMock(
             return_value=SimpleNamespace(
@@ -385,7 +389,7 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         with (
             patch("app.states.customer_state.logging.exception") as log,
             patch(
-                "app.states.customer_state.saved_upload_file",
+                "app.states.customer_state.private_file",
                 return_value=saved_file,
             ),
         ):

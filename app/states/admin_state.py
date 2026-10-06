@@ -28,8 +28,8 @@ class AdminOrder(TypedDict):
     amount: float
     status: str
     options: list[str]
-    reference: str
-    proof: str
+    reference: bool
+    proof: bool
     whatsapp: str
 
 
@@ -116,8 +116,8 @@ class AdminState(rx.State):
                     amount=order["total_price_paise"] / 100,
                     status=status,
                     options=[status, *ORDER_TRANSITIONS[status]],
-                    reference=self._image(order["reference_upload_path"]),
-                    proof=self._image(order["payment_proof_path"]),
+                    reference=bool(order["reference_upload_path"]),
+                    proof=bool(order["payment_proof_path"]),
                     whatsapp=f"https://wa.me/{customer['phone'].lstrip('+')}?text={quote(message, safe='')}",
                 )
             )

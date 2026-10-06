@@ -10,11 +10,15 @@ from app.components.customer_pages import (
     dashboard_page,
 )
 from app.components.customer_checkout_new import new_customer_checkout_page
+from app.states.private_files import migrate_private_files
+from app.states.private_file_api import order_image
 
 
 def index() -> rx.Component:
     return home_page()
 
+
+migrate_private_files()
 
 app = rx.App(
     theme=rx.theme(appearance="light"),
@@ -30,6 +34,9 @@ app = rx.App(
             rel="stylesheet",
         ),
     ],
+)
+app._api.add_route(
+    "/order-files/{order_id}/{kind}", order_image, methods=["GET"]
 )
 app.add_page(
     index,

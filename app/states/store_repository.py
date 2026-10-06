@@ -25,6 +25,7 @@ from app.states.store_models import (
     PortraitSize,
     PortraitStyle,
 )
+from app.states.private_files import require_private_file
 from app.states.store_uploads import (
     save_image_upload,
     require_saved_upload,
@@ -238,7 +239,7 @@ class StoreRepository:
     def submit_payment_proof(
         self, actor_id: int, order_id: int, filename: str
     ) -> Order:
-        proof = require_saved_upload(filename)
+        proof = require_private_file(filename, self.database_path)
         with connection(self.database_path) as conn:
             row = self._require_order_access(conn, actor_id, order_id)
             if row["user_id"] != actor_id:
@@ -272,7 +273,9 @@ class StoreRepository:
 
     async def save_upload(self, actor_id: int, file: rx.UploadFile) -> str:
         self.get_customer(actor_id, actor_id)
-        return await save_image_upload(file)
+        return await save_image_upload(
+            file, private=True, database_path=self.database_path
+        )
 
     async def save_admin_upload(
         self, actor_id: int, file: rx.UploadFile, png_only: bool = False
@@ -636,12 +639,18 @@ class StoreRepository:
             reference = (
                 row["reference_upload_path"]
                 if reference_path is None
-                else upload_path(reference_path)
+                else require_private_file(reference_path, self.database_path)
+                if reference_path
+                else ""
             )
             proof = (
                 row["payment_proof_path"]
                 if payment_proof_path is None
-                else upload_path(payment_proof_path)
+                else require_private_file(
+                    payment_proof_path, self.database_path
+                )
+                if payment_proof_path
+                else ""
             )
             conn.execute(
                 """UPDATE orders SET reference_upload_path = ?, payment_proof_path = ?,

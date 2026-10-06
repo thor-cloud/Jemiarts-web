@@ -7,6 +7,7 @@ from app.components.public_layout import (
 )
 from app.components.customer_forms import BUTTON, feedback, field, image_picker
 from app.states.customer_state import CustomerState, OrderView
+from app.components.protected_files import protected_file_link
 
 
 def page_heading(kicker: str, title: str, description: str) -> rx.Component:
@@ -197,6 +198,18 @@ def order_summary(order: OrderView) -> rx.Component:
         rx.el.p(
             order["payment"],
             class_name="text-xs leading-6 text-[var(--studio-text)]/60 mt-3",
+        ),
+        rx.el.div(
+            protected_file_link(
+                order["id"],
+                "reference",
+                order["reference"],
+                "Portrait reference",
+            ),
+            protected_file_link(
+                order["id"], "proof", order["proof"], "Payment proof"
+            ),
+            class_name="flex flex-wrap gap-5 mt-5",
         ),
     )
 

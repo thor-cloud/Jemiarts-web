@@ -10,7 +10,8 @@ from typing import Any, TypedDict
 
 from app.states.store_models import Customer, Order
 from app.states.store_repository import StoreRepository
-from app.states.store_uploads import saved_upload_file, require_saved_png
+from app.states.store_uploads import require_saved_png
+from app.states.private_files import private_file
 from app.states.store_validation import quantity_value
 
 
@@ -24,6 +25,8 @@ class OrderView(TypedDict):
     payment: str
     created_at: str
     provisional: bool
+    reference: bool
+    proof: bool
 
 
 class CustomerState(rx.State):
@@ -109,6 +112,8 @@ class CustomerState(rx.State):
             payment=payment,
             created_at=order["created_at"][:10],
             provisional=portrait,
+            reference=bool(order.get("reference_upload_path", "")),
+            proof=bool(order["payment_proof_path"]),
         )
 
     def _built_in_payment_qr(self) -> str:
@@ -427,7 +432,9 @@ class CustomerState(rx.State):
         finally:
             if filename and not committed:
                 try:
-                    saved_upload_file(filename).unlink(missing_ok=True)
+                    private_file(filename, repository.database_path).unlink(
+                        missing_ok=True
+                    )
                 except OSError as e:
                     logging.exception(f"Error: {e}")
             for file in files:

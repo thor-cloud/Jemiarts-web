@@ -329,7 +329,10 @@ def reference_entry() -> rx.Component:
                     "file-image",
                     class_name="h-4 w-4 shrink-0 text-[var(--studio-accent)]",
                 ),
-                rx.el.p(filename, class_name="min-w-0 break-all text-sm"),
+                rx.el.p(
+                    "One reference selected",
+                    class_name="min-w-0 text-sm text-[var(--studio-text)]",
+                ),
                 rx.el.button(
                     "Remove",
                     on_click=rx.clear_selected_files("portrait-reference"),
@@ -337,11 +340,10 @@ def reference_entry() -> rx.Component:
                     class_name="text-xs underline text-[var(--studio-accent)] ml-auto",
                 ),
                 class_name="mt-3 flex items-center gap-3 border border-[var(--studio-text)]/15 p-3",
-                key=filename,
             ),
         ),
         rx.el.p(
-            "Order Now uploads the selected image and saves it with your order. Files have unpredictable names and are not shown in the gallery, but upload links are not fully private. JPEG, PNG or WebP only; oversized or invalid images are rejected on submission.",
+            "Order Now uploads the selected image and saves it privately with your order. Only your signed-in account and the studio owner can view the saved reference. JPEG, PNG or WebP only; oversized or invalid images are rejected on submission.",
             class_name="text-xs text-[var(--studio-text)]/60 leading-6 mt-4",
         ),
         rx.el.p(

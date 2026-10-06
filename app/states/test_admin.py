@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from app.states.admin_state import AdminState
 from app.states.store_database import connection
 from app.states.store_repository import StoreRepository
+from app.states.private_files import private_file
 
 
 class AdminTests(unittest.TestCase):
@@ -83,7 +84,9 @@ class AdminTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             self.store.set_order_status(admin["id"], order["id"], "completed")
-        (self.root / "proof.png").write_bytes(b"proof")
+        private_file("proof.png", self.store.database_path).write_bytes(
+            b"proof"
+        )
         with patch.object(rx, "get_upload_dir", return_value=self.root):
             self.store.submit_payment_proof(
                 customer["id"], order["id"], "proof.png"

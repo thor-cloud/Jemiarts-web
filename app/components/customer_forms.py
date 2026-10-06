@@ -89,7 +89,10 @@ def image_picker(upload_id: str, label: str) -> rx.Component:
                     "file-image",
                     class_name="h-4 w-4 shrink-0 text-[var(--studio-accent)]",
                 ),
-                rx.el.p(filename, class_name="min-w-0 break-all text-sm"),
+                rx.el.p(
+                    "One image selected",
+                    class_name="min-w-0 text-sm text-[var(--studio-text)]",
+                ),
                 rx.el.button(
                     "Remove",
                     on_click=rx.clear_selected_files(upload_id),
@@ -98,11 +101,10 @@ def image_picker(upload_id: str, label: str) -> rx.Component:
                     class_name="text-xs underline text-[var(--studio-accent)] ml-auto",
                 ),
                 class_name="mt-3 flex items-center gap-3 border border-[var(--studio-text)]/15 p-3",
-                key=filename,
             ),
         ),
         rx.el.p(
-            "Invalid or oversized images are rejected when submitted. Files are stored with unpredictable names, but upload links are not fully private; do not share sensitive information beyond what is needed.",
+            "Invalid or oversized images are rejected when submitted. Saved references and payment proof are private: only your signed-in account and the studio owner can view them. Share only what is needed.",
             class_name="text-xs leading-6 text-[var(--studio-text)]/60 mt-3",
         ),
     )

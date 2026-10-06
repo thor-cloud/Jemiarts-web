@@ -6,6 +6,8 @@ import zlib
 from pathlib import Path
 
 from app.states.store_validation import upload_path
+from app.states.private_files import private_directory
+from app.states.store_database import LOCAL_DATABASE
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -120,7 +122,12 @@ def require_saved_png(filename: str) -> str:
     return validated
 
 
-async def save_image_upload(file: rx.UploadFile, png_only: bool = False) -> str:
+async def save_image_upload(
+    file: rx.UploadFile,
+    png_only: bool = False,
+    private: bool = False,
+    database_path: Path = LOCAL_DATABASE,
+) -> str:
     """Returns only the generated filename for storage in SQLite."""
     path: Path | None = None
     try:
@@ -132,7 +139,9 @@ async def save_image_upload(file: rx.UploadFile, png_only: bool = False) -> str:
         extension = _image_extension(data)
         if png_only:
             _verify_png(data)
-        directory = rx.get_upload_dir()
+        directory = (
+            private_directory(database_path) if private else rx.get_upload_dir()
+        )
         directory.mkdir(parents=True, exist_ok=True)
         filename = f"{secrets.token_hex(24)}{extension}"
         path = directory / filename

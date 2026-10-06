@@ -6,6 +6,7 @@ from app.components.customer_forms import BUTTON, INPUT
 from app.components.public_collection import public_image
 from app.states.admin_state import AdminState, AdminOrder
 from app.states.store_models import Bouquet
+from app.components.protected_files import protected_file_link
 
 
 SETTINGS_FIELDS: list[dict[str, str]] = [
@@ -66,24 +67,6 @@ def section_title(title: str, description: str) -> rx.Component:
     )
 
 
-def upload_link(filename: str, label: str) -> rx.Component:
-    return rx.cond(
-        filename != "",
-        rx.el.a(
-            rx.icon("image", class_name="h-4 w-4"),
-            label,
-            href=rx.get_upload_url(filename),
-            target="_blank",
-            rel="noopener noreferrer",
-            class_name="inline-flex items-center gap-2 text-sm text-[var(--studio-accent)] underline underline-offset-4",
-        ),
-        rx.el.span(
-            f"{label}: not submitted",
-            class_name="text-xs text-[var(--studio-text)]/55",
-        ),
-    )
-
-
 def admin_order(order: AdminOrder) -> rx.Component:
     return rx.el.article(
         rx.el.div(
@@ -117,8 +100,15 @@ def admin_order(order: AdminOrder) -> rx.Component:
             class_name="w-fit mt-5 px-3 py-2 text-xs bg-[var(--studio-accent)]/10 text-[var(--studio-accent)]",
         ),
         rx.el.div(
-            upload_link(order["reference"], "Portrait reference"),
-            upload_link(order["proof"], "Payment proof"),
+            protected_file_link(
+                order["id"],
+                "reference",
+                order["reference"],
+                "Portrait reference",
+            ),
+            protected_file_link(
+                order["id"], "proof", order["proof"], "Payment proof"
+            ),
             class_name="flex flex-wrap gap-5 mt-5",
         ),
         rx.el.form(
