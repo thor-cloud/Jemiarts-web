@@ -470,7 +470,8 @@ class CustomerState(rx.State):
                     "Payment QR unavailable. Refresh checkout or contact the studio before paying or submitting proof."
                 )
             if len(files) != 1:
-                raise ValueError("Select one payment screenshot first.")
+                self.error = "Select one payment screenshot first."
+                return
             filename = await repository.save_upload(customer["id"], files[0])
             self._load_payment_qr(repository)
             if not self.qr_available:
@@ -497,7 +498,7 @@ class CustomerState(rx.State):
             self._clear_identity()
             return rx.redirect("/login")
         except (ValueError, LookupError) as e:
-            logging.exception(f"Error: {e}")
+            logging.exception("Unexpected error")
             self.error = str(e)
         except Exception as e:
             logging.exception(f"Error: {e}")

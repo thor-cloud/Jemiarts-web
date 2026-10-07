@@ -102,6 +102,53 @@ class CustomerIntegrationTests(unittest.TestCase):
                 )
         self.assertEqual(self.repository.list_orders(self.other["id"]), [])
 
+    def test_invalid_proof_count_keeps_saved_order_awaiting_payment(self):
+        order = self.repository.create_order(
+            self.customer["id"],
+            "portrait",
+            {},
+            portrait_size_id=self.repository.list_portrait_sizes()[0]["id"],
+            portrait_style_id=self.repository.list_portrait_styles()[0]["id"],
+        )
+        for count in (0, 2):
+            with self.subTest(count=count):
+                state = CustomerFlowRegressionTests().state(
+                    order=str(order["id"]), token="valid"
+                )
+                state._repository_customer = Mock(
+                    return_value=(self.repository, self.customer)
+                )
+                files = [
+                    SimpleNamespace(close=AsyncMock()) for _ in range(count)
+                ]
+                with (
+                    patch("app.states.customer_state.logging.exception") as log,
+                    patch.object(self.repository, "save_upload") as save,
+                    patch.object(
+                        self.repository, "submit_payment_proof"
+                    ) as submit,
+                ):
+                    result = asyncio.run(
+                        CustomerState.upload_payment_proof.fn(state, files)
+                    )
+                    self.assertIsNone(result)
+                    log.assert_not_called()
+                    save.assert_not_called()
+                    submit.assert_not_called()
+                saved = self.repository.customer_order(
+                    self.customer["id"], order["id"]
+                )
+                self.assertEqual(saved["status"], "awaiting_payment")
+                self.assertEqual(saved["payment_proof_path"], "")
+                self.assertEqual(
+                    state.error, "Select one payment screenshot first."
+                )
+                self.assertEqual(state.notice, "")
+                self.assertEqual(state.session_token, "valid")
+                self.assertFalse(state.busy)
+                for file in files:
+                    file.close.assert_awaited_once()
+
     def test_expired_session_fails_closed(self):
         token = self.repository.create_session(self.customer["id"])
         with connection(self.repository.database_path) as conn:
@@ -199,14 +246,124 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         state._repository_customer = Mock(return_value=(repository, {"id": 1}))
         repository.get_settings.return_value = {"payment_qr_path": ""}
         state.qr_available = True
-        asyncio.run(CustomerState.upload_payment_proof.fn(state, []))
+        with patch("app.states.customer_state.logging.exception") as log:
+            result = asyncio.run(
+                CustomerState.upload_payment_proof.fn(state, [])
+            )
+            log.assert_not_called()
+        self.assertIsNone(result)
+        self.assertFalse(state.busy)
+        self.assertEqual(state.notice, "")
         self.assertTrue(state.qr_available)
         self.assertEqual(state.qr_image_path, "")
         self.assertTrue(state.qr_image_url.startswith("data:image/png;base64,"))
         repository.get_settings.assert_called_once_with()
-        self.assertIn("Select one payment screenshot", state.error)
+        self.assertEqual(state.error, "Select one payment screenshot first.")
         repository.save_upload.assert_not_called()
         repository.submit_payment_proof.assert_not_called()
+
+    def test_expected_proof_validation_shows_message_without_error_logging(
+        self,
+    ):
+        for error in (
+            ValueError("Invalid screenshot."),
+            LookupError("Order unavailable."),
+        ):
+            with self.subTest(error=type(error).__name__):
+                state = self.state(token="valid")
+                repository = Mock()
+                repository.customer_order.return_value = {
+                    "status": "awaiting_payment"
+                }
+                repository.get_settings.return_value = {"payment_qr_path": ""}
+                repository.save_upload = AsyncMock(side_effect=error)
+                state._repository_customer = Mock(
+                    return_value=(repository, {"id": 1})
+                )
+                file = SimpleNamespace(close=AsyncMock())
+                with patch(
+                    "app.states.customer_state.logging.exception"
+                ) as log:
+                    asyncio.run(
+                        CustomerState.upload_payment_proof.fn(state, [file])
+                    )
+                    log.assert_not_called()
+                self.assertEqual(state.error, str(error))
+                self.assertFalse(state.busy)
+                self.assertEqual(state.notice, "")
+                repository.submit_payment_proof.assert_not_called()
+                file.close.assert_awaited_once()
+
+    def test_unexpected_proof_failure_still_logs_and_cleans_saved_file(self):
+        state = self.state(token="valid")
+        repository = Mock()
+        repository.customer_order.return_value = {"status": "awaiting_payment"}
+        repository.get_settings.return_value = {"payment_qr_path": ""}
+        repository.save_upload = AsyncMock(return_value="proof.png")
+        repository.submit_payment_proof.side_effect = RuntimeError(
+            "Save failed"
+        )
+        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        file = SimpleNamespace(close=AsyncMock())
+        saved_file = Mock()
+        with (
+            patch("app.states.customer_state.logging.exception") as log,
+            patch(
+                "app.states.customer_state.private_file",
+                return_value=saved_file,
+            ),
+        ):
+            asyncio.run(CustomerState.upload_payment_proof.fn(state, [file]))
+            log.assert_called_once_with("Error: Save failed")
+        saved_file.unlink.assert_called_once_with(missing_ok=True)
+        file.close.assert_awaited_once()
+        self.assertFalse(state.busy)
+        self.assertEqual(state.notice, "")
+        self.assertEqual(
+            state.error,
+            "Your payment proof could not be saved. Please try again.",
+        )
+
+    def test_checkout_proof_button_requires_exactly_one_selected_file(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "components" / "customer_pages.py").read_text()
+        tree = ast.parse(source)
+        checkout = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "checkout_order"
+        )
+        button = next(
+            node
+            for node in ast.walk(checkout)
+            if isinstance(node, ast.Call)
+            and any(
+                keyword.arg == "on_click"
+                and "CustomerState.upload_payment_proof"
+                in ast.unparse(keyword.value)
+                for keyword in node.keywords
+            )
+        )
+        props = {keyword.arg: keyword.value for keyword in button.keywords}
+        guard = props["disabled"]
+        self.assertIsInstance(guard, ast.BinOp)
+        self.assertIsInstance(guard.op, ast.BitOr)
+        self.assertEqual(
+            ast.unparse(guard),
+            "CustomerState.busy | ~CustomerState.qr_available | "
+            "(rx.selected_files('payment-proof').length() != 1)",
+        )
+        self.assertIn(
+            "rx.upload_files(upload_id='payment-proof')",
+            ast.unparse(props["on_click"]),
+        )
+        self.assertIn("Upload proof for review", ast.unparse(button))
+        self.assertIn("Choose your payment screenshot", ast.unparse(checkout))
+        self.assertIn(
+            "The status changes to payment review only after the file is saved.",
+            ast.unparse(checkout),
+        )
 
     def test_saved_qr_priority_and_invalid_override_fallback(self):
         state = self.state()
