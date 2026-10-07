@@ -507,7 +507,9 @@ class CustomerState(rx.State):
         finally:
             if filename and not committed:
                 try:
-                    saved_upload_file(filename).unlink(missing_ok=True)
+                    private_file(filename, repository.database_path).unlink(
+                        missing_ok=True
+                    )
                 except OSError as e:
                     logging.exception(f"Error: {e}")
             for file in files:
