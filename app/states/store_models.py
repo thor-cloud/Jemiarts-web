@@ -18,6 +18,8 @@ class Customer(TypedDict):
     name: str
     phone: str
     email: str
+    username: str
+    must_change_password: bool
     is_admin: bool
     created_at: str
 

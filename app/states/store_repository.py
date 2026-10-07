@@ -1,10 +1,8 @@
 import reflex as rx
-import hmac
 import hashlib
 import secrets
 import time
 import json
-import os
 import sqlite3
 from pathlib import Path
 from typing import cast
@@ -66,6 +64,8 @@ class StoreRepository:
             name=row["name"],
             phone=row["phone"],
             email=row["email"],
+            username=row["username"],
+            must_change_password=bool(row["must_change_password"]),
             is_admin=bool(row["is_admin"]),
             password_hash=row["password_hash"],
             created_at=row["created_at"],
@@ -77,6 +77,8 @@ class StoreRepository:
             name=row["name"],
             phone=row["phone"],
             email=row["email"],
+            username=row["username"],
+            must_change_password=bool(row["must_change_password"]),
             is_admin=bool(row["is_admin"]),
             created_at=row["created_at"],
         )
@@ -110,10 +112,15 @@ class StoreRepository:
 
     def _require_admin(self, conn: sqlite3.Connection, actor_id: int) -> None:
         row = conn.execute(
-            "SELECT is_admin FROM users WHERE id = ?", (positive_id(actor_id),)
+            "SELECT is_admin, must_change_password FROM users WHERE id = ?",
+            (positive_id(actor_id),),
         ).fetchone()
         if row is None or not row["is_admin"]:
             raise PermissionError("Administrator access required.")
+        if row["must_change_password"]:
+            raise PermissionError(
+                "Change your password before opening the studio workspace."
+            )
 
     def _require_order_access(
         self, conn: sqlite3.Connection, actor_id: int, order_id: int
@@ -136,21 +143,11 @@ class StoreRepository:
             email_address(email),
         )
         encoded = hash_password(password)
-        designated_phone = os.environ.get("ARTIST_ADMIN_PHONE", "").strip()
-        designated_admin = bool(designated_phone) and hmac.compare_digest(
-            phone, phone_number(designated_phone)
-        )
         try:
             with connection(self.database_path) as conn:
-                is_admin = (
-                    designated_admin
-                    if designated_phone
-                    else conn.execute("SELECT 1 FROM users LIMIT 1").fetchone()
-                    is None
-                )
                 cursor = conn.execute(
                     "INSERT INTO users(name, phone, email, password_hash, is_admin) VALUES (?, ?, ?, ?, ?)",
-                    (name, phone, email, encoded, int(is_admin)),
+                    (name, phone, email, encoded, 0),
                 )
                 row = conn.execute(
                     "SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)
@@ -165,7 +162,9 @@ class StoreRepository:
     def authenticate(self, phone: str, password: str) -> Customer | None:
         try:
             identifier = phone.strip()
-            if "@" in identifier:
+            if identifier.lower() == "admin":
+                normalized, column = "admin", "username"
+            elif "@" in identifier:
                 normalized = email_address(identifier)
                 column = "email"
             else:
@@ -175,7 +174,7 @@ class StoreRepository:
             normalized, column = "", "phone"
         with connection(self.database_path) as conn:
             row = conn.execute(
-                f"SELECT * FROM users WHERE {column} = ? AND {column} != ''",
+                f"SELECT * FROM users WHERE {column} = ? COLLATE NOCASE AND {column} != ''",
                 (normalized,),
             ).fetchone()
         if row is None:
@@ -219,8 +218,8 @@ class StoreRepository:
 
     def session_admin(self, token: str) -> Customer:
         customer = self.session_customer(token)
-        if not self.is_admin(customer["id"]):
-            raise PermissionError("Administrator access required.")
+        with connection(self.database_path) as conn:
+            self._require_admin(conn, customer["id"])
         return customer
 
     def revoke_session(self, token: str) -> None:
@@ -304,14 +303,21 @@ class StoreRepository:
             current_password, row["password_hash"]
         ):
             raise PermissionError("Current password is incorrect.")
+        if verify_password(new_password, row["password_hash"]):
+            raise ValueError(
+                "Choose a password different from your current password."
+            )
         encoded = hash_password(new_password)
         with connection(self.database_path) as conn:
             cursor = conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?",
+                "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ? AND password_hash = ?",
                 (encoded, actor_id, row["password_hash"]),
             )
             if cursor.rowcount != 1:
                 raise PermissionError("Account changed; authenticate again.")
+            conn.execute(
+                "DELETE FROM customer_sessions WHERE user_id = ?", (actor_id,)
+            )
 
     def list_bouquets(self) -> list[Bouquet]:
         with connection(self.database_path) as conn:

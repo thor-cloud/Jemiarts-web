@@ -1,4 +1,4 @@
-## Artist Storefront Updates Plan
-- [x] Add an accessible sun/moon toggle in the existing main header that switches the complete storefront between its ivory/charcoal/terracotta light palette and a complementary dark palette, persists the visitor’s preference, and keeps the current responsive navigation and Cormorant Garamond/DM Sans editorial styling.
-- [x] Show a real scannable checkout UPI QR for Sajin at psajin2001@okhdfcbank, visibly identify the recipient, preserve the existing saved-QR admin override and payment-proof review flow, and verify its encoded payment address.
-- [x] Persist admin-editable portrait sizes and art styles in the existing local SQLite database; seed A5, A4, A3, A2 and Water color/Pencil color, provide protected add/edit/remove controls in the existing admin workspace, render live options and provisional size prices on the portrait booking page, and validate/save selected size, style, and trusted price with orders without changing historical order snapshots.
+## Studio Owner Login and Admin Workspace Plan
+- [x] Extend the existing SQLite account schema and startup initialization for a unique owner username and one-time default admin credentials, preserving existing users, orders, settings, and the ivory/charcoal/terracotta editorial design with Cormorant Garamond and DM Sans.
+- [x] Enable username-based owner login and a safe first-sign-in password change within the existing account flow, with session-backed navigation to the protected studio workspace and customer signup remaining unprivileged.
+- [x] Connect the existing admin workspace to authorized SQLite orders, gallery and site settings, verify non-admin denial and saved edits, and retain the responsive current layout and protected private files.

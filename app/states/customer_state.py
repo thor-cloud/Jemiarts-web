@@ -35,6 +35,8 @@ class CustomerState(rx.State):
     )
     authenticated: bool = False
     admin_access: bool = False
+    must_change_password: bool = False
+    password_change_mode: bool = False
     customer_name: str = ""
     signup_mode: bool = False
     busy: bool = False
@@ -59,13 +61,18 @@ class CustomerState(rx.State):
         self._actor_id = customer["id"]
         self.authenticated = True
         self.customer_name = customer["name"]
-        self.admin_access = customer["is_admin"]
+        self.must_change_password = customer["must_change_password"]
+        self.admin_access = (
+            customer["is_admin"] and not self.must_change_password
+        )
         return repository, customer
 
     def _clear_identity(self):
         self._actor_id = 0
         self.authenticated = False
         self.admin_access = False
+        self.must_change_password = False
+        self.password_change_mode = False
         self.customer_name = ""
         self.orders = []
         self.checkout_orders = []
@@ -194,8 +201,21 @@ class CustomerState(rx.State):
             return
         try:
             repository, customer = self._repository_customer()
+            if customer["must_change_password"]:
+                self.password_change_mode = True
+                if path != "/login":
+                    return rx.redirect("/login")
+                return
             if path == "/login":
-                return rx.redirect(self._next_path)
+                self.password_change_mode = (
+                    self.router.url.query_parameters.get("password", "")
+                    == "change"
+                )
+                if self.password_change_mode:
+                    return
+                return rx.redirect(
+                    "/admin" if customer["is_admin"] else self._next_path
+                )
             self.orders = [
                 self._view(order)
                 for order in repository.list_orders(customer["id"])
@@ -271,23 +291,103 @@ class CustomerState(rx.State):
                     str(form_data.get("identifier", "")), password
                 )
                 if customer is None:
-                    self.error = "Phone/email or password is incorrect."
+                    self.error = "Sign-in details or password are incorrect."
                     return
             repository.revoke_session(self.session_token)
             self.session_token = repository.create_session(customer["id"])
             self._actor_id = customer["id"]
             self.authenticated = True
             self.customer_name = customer["name"]
-            self.admin_access = customer["is_admin"]
+            self.must_change_password = customer["must_change_password"]
+            self.password_change_mode = self.must_change_password
+            self.admin_access = (
+                customer["is_admin"] and not self.must_change_password
+            )
+            self.signup_mode = False
             self.orders = []
             self.checkout_orders = []
-            yield rx.redirect(self._next_path)
+            destination = (
+                "/login"
+                if self.must_change_password
+                else "/admin"
+                if customer["is_admin"]
+                else self._next_path
+            )
+            yield rx.redirect(destination)
         except ValueError as e:
             logging.exception(f"Error: {e}")
             self.error = str(e)
         except Exception as e:
             logging.exception(f"Error: {e}")
             self.error = "We could not sign you in. Please try again."
+        finally:
+            self.busy = False
+
+    @rx.event
+    def change_password_form(self, form_data: dict[str, Any]):
+        if self.busy:
+            return
+        self.busy = True
+        self.error = ""
+        self.notice = ""
+        yield
+        changed = False
+        try:
+            repository, customer = self._repository_customer()
+            now = time.time()
+            self._auth_attempts = [
+                stamp for stamp in self._auth_attempts if now - stamp < 60
+            ]
+            if len(self._auth_attempts) >= 5:
+                raise ValueError(
+                    "Too many attempts. Please wait one minute and try again."
+                )
+            self._auth_attempts.append(now)
+            replacement = str(form_data.get("new_password", ""))
+            if replacement != str(form_data.get("confirm_password", "")):
+                raise ValueError("Passwords do not match.")
+            repository.change_password(
+                customer["id"],
+                str(form_data.get("current_password", "")),
+                replacement,
+            )
+            changed = True
+            self.session_token = ""
+            self.session_token = repository.create_session(customer["id"])
+            _, customer = self._repository_customer()
+            self.password_change_mode = False
+            self.orders = []
+            self.checkout_orders = []
+            self.notice = (
+                "Password updated. Previous sessions have been signed out."
+            )
+            yield rx.redirect(
+                "/admin" if customer["is_admin"] else "/dashboard"
+            )
+        except (ValueError, PermissionError) as e:
+            logging.exception(f"Error: {e}")
+            self.error = str(e)
+            try:
+                self._repository_customer()
+            except PermissionError:
+                logging.exception("Unexpected error")
+                self.session_token = ""
+                self._clear_identity()
+                yield rx.redirect("/login")
+            except Exception as refresh_error:
+                logging.exception(f"Error: {refresh_error}")
+                self._clear_identity()
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            if changed:
+                self.session_token = ""
+                self._clear_identity()
+                self.error = "Password updated, but sign-in could not be renewed. Log in with your new password."
+                yield rx.redirect("/login")
+            else:
+                self.error = (
+                    "Your password could not be updated. Please try again."
+                )
         finally:
             self.busy = False
 

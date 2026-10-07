@@ -25,10 +25,8 @@ class PortraitOptionTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.path = Path(directory.name) / "store.sqlite3"
         self.store = StoreRepository(self.path)
+        self.store.change_password(1, "password", "a rotated owner password")
         with connection(self.path) as conn:
-            conn.execute(
-                "INSERT INTO users(id, name, phone, password_hash, is_admin) VALUES (1, 'Owner', '+919876543210', 'test', 1)"
-            )
             conn.execute(
                 "INSERT INTO users(id, name, phone, password_hash, is_admin) VALUES (2, 'Customer', '+919876543211', 'test', 0)"
             )
@@ -64,7 +62,7 @@ class PortraitOptionTests(unittest.TestCase):
         )
         with connection(self.path) as conn:
             self.assertEqual(
-                conn.execute("PRAGMA user_version").fetchone()[0], 3
+                conn.execute("PRAGMA user_version").fetchone()[0], 4
             )
             migrate_v2_to_v3(conn)
         self.assertEqual(len(self.store.list_portrait_sizes()), 4)
@@ -98,7 +96,11 @@ class PortraitOptionTests(unittest.TestCase):
                 self.assertEqual(
                     [
                         tuple(row)
-                        for row in conn.execute(f"SELECT * FROM {table}")
+                        for row in conn.execute(
+                            "SELECT id, name, phone, email, password_hash, is_admin, created_at FROM users WHERE username = ''"
+                            if table == "users"
+                            else f"SELECT * FROM {table}"
+                        )
                     ],
                     rows,
                 )

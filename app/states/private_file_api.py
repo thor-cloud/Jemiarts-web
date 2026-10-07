@@ -67,8 +67,13 @@ def _response(request: Request, database_path: Path) -> Response:
             )
         except PermissionError:
             logging.exception("Unexpected error")
+            logging.debug("Private image unavailable")
             return _error(401)
         try:
+            if actor["is_admin"]:
+                repository.session_admin(
+                    request.cookies.get("studio_session", "")
+                )
             kind = FileKind(request.path_params["kind"])
             raw_id = request.path_params["order_id"]
             if not raw_id.isascii() or not raw_id.isdigit() or len(raw_id) > 18:
@@ -85,8 +90,9 @@ def _response(request: Request, database_path: Path) -> Response:
             response = PrivateImageResponse(descriptor, mime)
             descriptor = -1
             return response
-        except (PermissionError, LookupError, ValueError, OSError):
+        except (PermissionError, LookupError, ValueError, FileNotFoundError):
             logging.exception("Unexpected error")
+            logging.debug("Private image unavailable")
             return _error(404)
     except Exception as e:
         logging.exception(f"Error: {e}")

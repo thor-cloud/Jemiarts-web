@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.states.store_database import connection, initialize_database
+from app.states.private_files import private_file
 from app.states.store_repository import DuplicateAccountError, StoreRepository
 from app.states.store_validation import (
     hash_password,
@@ -32,16 +33,22 @@ class StoreTests(unittest.TestCase):
         )
 
     def admin(self):
-        with patch.dict("os.environ", {"ARTIST_ADMIN_PHONE": "+919876543211"}):
-            return self.store.signup(
-                "Test Administrator", "+919876543211", "another long password"
+        with connection(self.path) as conn:
+            owner_id = conn.execute(
+                "SELECT id FROM users WHERE username = 'admin'"
+            ).fetchone()["id"]
+        owner = self.store.get_customer(owner_id, owner_id)
+        if owner["must_change_password"]:
+            self.store.change_password(
+                owner_id, "password", "a rotated owner password"
             )
+        return self.store.get_customer(owner_id, owner_id)
 
-    def test_only_settings_seeded_and_initialization_idempotent(self):
+    def test_owner_and_settings_seeded_and_initialization_idempotent(self):
         initialize_database(self.path)
         with connection(self.path) as conn:
             self.assertEqual(
-                conn.execute("SELECT count(*) FROM users").fetchone()[0], 0
+                conn.execute("SELECT count(*) FROM users").fetchone()[0], 1
             )
             self.assertEqual(
                 conn.execute("SELECT count(*) FROM bouquet_models").fetchone()[
@@ -76,6 +83,8 @@ class StoreTests(unittest.TestCase):
     def test_signup_authentication_and_explicit_admin(self):
         customer = self.customer()
         self.assertFalse(customer["is_admin"])
+        self.assertEqual(customer["username"], "")
+        self.assertIs(customer["must_change_password"], False)
         self.assertNotIn("password_hash", customer)
         self.assertTrue(self.admin()["is_admin"])
         self.assertEqual(
@@ -98,13 +107,14 @@ class StoreTests(unittest.TestCase):
         )
 
     def test_admin_configuration_fails_closed(self):
+        owner = self.admin()
         with patch.dict("os.environ", {"ARTIST_ADMIN_PHONE": "invalid"}):
-            with self.assertRaises(ValueError):
-                self.customer()
+            self.assertFalse(self.customer()["is_admin"])
         with connection(self.path) as conn:
             self.assertEqual(
-                conn.execute("SELECT count(*) FROM users").fetchone()[0], 0
+                conn.execute("SELECT count(*) FROM users").fetchone()[0], 2
             )
+        self.assertEqual(self.admin(), owner)
 
     def test_price_snapshot_paths_and_authorization(self):
         customer, admin = self.customer(), self.admin()
@@ -124,6 +134,10 @@ class StoreTests(unittest.TestCase):
             ],
             12500,
         )
+        for filename in ("reference.png", "proof.jpg"):
+            path = private_file(filename, self.path)
+            path.write_bytes(b"private upload fixture")
+            path.chmod(0o600)
         self.store.attach_order_uploads(
             customer["id"], order["id"], "reference.png", "proof.jpg"
         )

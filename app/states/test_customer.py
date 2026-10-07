@@ -167,6 +167,9 @@ class CustomerFlowRegressionTests(unittest.TestCase):
             ),
             session_token=token,
             authenticated=False,
+            admin_access=False,
+            must_change_password=False,
+            password_change_mode=False,
             customer_name="",
             _actor_id=0,
             _next_path="/dashboard",
@@ -201,7 +204,12 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         self.assertFalse(state.authenticated)
         state.router.url.path = "/login"
         state.session_token = "valid-session"
-        state._repository_customer = Mock(return_value=(Mock(), {"id": 1}))
+        state._repository_customer = Mock(
+            return_value=(
+                Mock(),
+                {"id": 1, "must_change_password": False, "is_admin": False},
+            )
+        )
         with patch.object(rx, "redirect") as redirect:
             CustomerState.load_account_page.fn(state)
             redirect.assert_called_once_with("/checkout?order=42")
@@ -218,7 +226,12 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         repository = Mock()
         repository.list_orders.return_value = []
         repository.customer_order.side_effect = PermissionError("Not yours")
-        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        state._repository_customer = Mock(
+            return_value=(
+                repository,
+                {"id": 1, "must_change_password": False, "is_admin": False},
+            )
+        )
         repository.get_settings.return_value = {"payment_qr_path": ""}
         CustomerState.load_account_page.fn(state)
         repository.customer_order.assert_called_once_with(1, 42)
@@ -243,7 +256,12 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         state = self.state(token="valid")
         repository = Mock()
         repository.customer_order.return_value = {"status": "awaiting_payment"}
-        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        state._repository_customer = Mock(
+            return_value=(
+                repository,
+                {"id": 1, "must_change_password": False, "is_admin": False},
+            )
+        )
         repository.get_settings.return_value = {"payment_qr_path": ""}
         state.qr_available = True
         with patch("app.states.customer_state.logging.exception") as log:
@@ -303,7 +321,12 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         repository.submit_payment_proof.side_effect = RuntimeError(
             "Save failed"
         )
-        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        state._repository_customer = Mock(
+            return_value=(
+                repository,
+                {"id": 1, "must_change_password": False, "is_admin": False},
+            )
+        )
         file = SimpleNamespace(close=AsyncMock())
         saved_file = Mock()
         with (
@@ -431,7 +454,12 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         }
         repository.customer_order.return_value = order
         repository.list_orders.return_value = [order]
-        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        state._repository_customer = Mock(
+            return_value=(
+                repository,
+                {"id": 1, "must_change_password": False, "is_admin": False},
+            )
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "artist.png").write_bytes(png_test_image())
@@ -535,7 +563,12 @@ class CustomerFlowRegressionTests(unittest.TestCase):
         repository.save_upload = AsyncMock(return_value="reference.png")
         repository.create_order.side_effect = RuntimeError("Save failed")
         repository.database_path = Path("test.sqlite3")
-        state._repository_customer = Mock(return_value=(repository, {"id": 1}))
+        state._repository_customer = Mock(
+            return_value=(
+                repository,
+                {"id": 1, "must_change_password": False, "is_admin": False},
+            )
+        )
         state.get_state = AsyncMock(
             return_value=SimpleNamespace(
                 portrait_size_id=2, portrait_style_id=1

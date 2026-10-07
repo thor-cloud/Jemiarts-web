@@ -49,9 +49,14 @@ class PrivateFileTests(unittest.TestCase):
         self.addCleanup(environment.stop)
         self.database = self.root / "data" / "store.sqlite3"
         self.repository = StoreRepository(self.database)
-        self.admin = self.repository.signup(
-            "Owner", "+919876543210", "a secure test password"
+        with connection(self.database) as conn:
+            owner_id = conn.execute(
+                "SELECT id FROM users WHERE username = 'admin'"
+            ).fetchone()[0]
+        self.repository.change_password(
+            owner_id, "password", "a rotated owner password"
         )
+        self.admin = self.repository.get_customer(owner_id, owner_id)
         self.owner = self.repository.signup(
             "Customer", "+919876543211", "a secure test password"
         )
@@ -149,6 +154,28 @@ class PrivateFileTests(unittest.TestCase):
                     ),
                 )
             self.assertEqual(self.get(client, actor="other").status_code, 401)
+
+    def test_pending_owner_denied_private_files_and_rotation_revokes_access(
+        self,
+    ):
+        with TestClient(self.backend()) as client:
+            with connection(self.database) as conn:
+                conn.execute(
+                    "UPDATE users SET must_change_password = 1 WHERE id = ?",
+                    (self.admin["id"],),
+                )
+            self.assertEqual(self.get(client, actor="admin").status_code, 404)
+            self.assertEqual(self.get(client, actor="owner").status_code, 200)
+            self.repository.change_password(
+                self.admin["id"],
+                "a rotated owner password",
+                "another rotated owner password",
+            )
+            self.assertEqual(self.get(client, actor="admin").status_code, 401)
+            self.tokens["admin"] = self.repository.create_session(
+                self.admin["id"]
+            )
+            self.assertEqual(self.get(client, actor="admin").status_code, 200)
 
     def test_private_upload_proof_flow_and_actual_mime(self):
         with TestClient(self.backend()) as client:
@@ -288,6 +315,69 @@ class PrivateFileTests(unittest.TestCase):
         (self.public / "legacy.png").unlink()
         with TestClient(self.backend()) as client:
             self.assertEqual(self.get(client).status_code, 404)
+
+    def test_expected_auth_denials_are_quiet_and_non_cacheable(self):
+        with TestClient(self.backend()) as client:
+            with patch("app.states.private_file_api.logging.exception") as log:
+                for token, status in (
+                    ("", 401),
+                    ("invalid-session", 401),
+                    (self.tokens["other"], 404),
+                ):
+                    with self.subTest(status=status, present=bool(token)):
+                        client.cookies.clear()
+                        if token:
+                            client.cookies.set("studio_session", token)
+                        response = client.get(self.url())
+                        self.assertEqual(response.status_code, status)
+                        self.assertEqual(
+                            response.headers["cache-control"],
+                            "private, no-store",
+                        )
+                        self.assertEqual(
+                            response.headers["x-content-type-options"],
+                            "nosniff",
+                        )
+                        self.assertNotIn(str(self.root), response.text)
+                with connection(self.database) as conn:
+                    conn.execute(
+                        "UPDATE customer_sessions SET expires_at = 0 WHERE user_id = ?",
+                        (self.other["id"],),
+                    )
+                    conn.execute(
+                        "UPDATE users SET must_change_password = 1 WHERE id = ?",
+                        (self.admin["id"],),
+                    )
+                expired = self.get(client, actor="other")
+                pending = self.get(client, actor="admin")
+                self.assertEqual(expired.status_code, 401)
+                self.assertEqual(pending.status_code, 404)
+                for response in (expired, pending):
+                    self.assertEqual(
+                        response.headers["cache-control"], "private, no-store"
+                    )
+                log.assert_not_called()
+
+    def test_unexpected_private_api_failure_is_reported_without_details(self):
+        with TestClient(self.backend()) as client:
+            for error in (
+                RuntimeError("Unexpected failure"),
+                OSError("Disk failure"),
+            ):
+                with self.subTest(error=type(error).__name__):
+                    with patch.object(
+                        StoreRepository, "get_order", side_effect=error
+                    ):
+                        with patch(
+                            "app.states.private_file_api.logging.exception"
+                        ) as log:
+                            response = self.get(client)
+                            log.assert_called_once()
+                    self.assertEqual(response.status_code, 404)
+                    self.assertEqual(
+                        response.headers["cache-control"], "private, no-store"
+                    )
+                    self.assertNotIn(str(error), response.text)
 
 
 if __name__ == "__main__":

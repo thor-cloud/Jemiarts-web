@@ -5,7 +5,13 @@ from app.components.public_layout import (
     action_link,
     contact_links,
 )
-from app.components.customer_forms import BUTTON, feedback, field, image_picker
+from app.components.customer_forms import (
+    BUTTON,
+    feedback,
+    field,
+    image_picker,
+    password_change_form,
+)
 from app.states.customer_state import CustomerState, OrderView
 from app.components.protected_files import protected_file_link
 
@@ -53,101 +59,127 @@ def login_page() -> rx.Component:
                     class_name="border border-[var(--studio-accent)]/20 bg-[var(--studio-accent)]/5 p-8 md:p-12",
                 ),
                 rx.el.div(
-                    rx.el.h2(
+                    rx.cond(
+                        CustomerState.ready,
                         rx.cond(
-                            CustomerState.signup_mode,
-                            "Create your account",
-                            "Welcome back",
+                            CustomerState.authenticated
+                            & CustomerState.password_change_mode,
+                            password_change_form(),
+                            rx.fragment(
+                                rx.el.h2(
+                                    rx.cond(
+                                        CustomerState.signup_mode,
+                                        "Create your account",
+                                        "Welcome back",
+                                    ),
+                                    class_name="font-['Cormorant_Garamond'] text-4xl mb-6",
+                                ),
+                                feedback(),
+                                rx.el.form(
+                                    rx.cond(
+                                        CustomerState.signup_mode,
+                                        rx.el.div(
+                                            field(
+                                                "Your name",
+                                                "name",
+                                                autocomplete="name",
+                                            ),
+                                            field(
+                                                "International phone number",
+                                                "phone",
+                                                "tel",
+                                                placeholder="+91 98765 43210",
+                                                autocomplete="tel",
+                                            ),
+                                            rx.el.p(
+                                                "Include + and your country code. This number is not verified by SMS.",
+                                                class_name="text-xs leading-6 text-[var(--studio-text)]/60",
+                                            ),
+                                            field(
+                                                "Email (optional)",
+                                                "email",
+                                                "email",
+                                                required=False,
+                                                autocomplete="email",
+                                            ),
+                                            class_name="space-y-5",
+                                        ),
+                                        field(
+                                            "Phone, saved email or owner username",
+                                            "identifier",
+                                            placeholder="Your phone, email or username",
+                                            autocomplete="username",
+                                        ),
+                                    ),
+                                    field(
+                                        "Password",
+                                        "password",
+                                        "password",
+                                        autocomplete=rx.cond(
+                                            CustomerState.signup_mode,
+                                            "new-password",
+                                            "current-password",
+                                        ),
+                                    ),
+                                    rx.cond(
+                                        CustomerState.signup_mode,
+                                        rx.el.div(
+                                            rx.el.p(
+                                                "Use 12–256 characters. Your optional email can also be used to log in.",
+                                                class_name="text-xs leading-6 text-[var(--studio-text)]/60 mb-5",
+                                            ),
+                                            field(
+                                                "Confirm password",
+                                                "confirm_password",
+                                                "password",
+                                                autocomplete="new-password",
+                                            ),
+                                        ),
+                                    ),
+                                    rx.el.button(
+                                        rx.cond(
+                                            CustomerState.busy,
+                                            "Please wait…",
+                                            rx.cond(
+                                                CustomerState.signup_mode,
+                                                "Create account",
+                                                "Log in",
+                                            ),
+                                        ),
+                                        rx.icon(
+                                            "arrow-right", class_name="h-4 w-4"
+                                        ),
+                                        type="submit",
+                                        disabled=CustomerState.busy,
+                                        class_name=BUTTON,
+                                    ),
+                                    on_submit=CustomerState.authenticate_form,
+                                    key=CustomerState.signup_mode,
+                                    class_name="flex flex-col gap-5 mt-5",
+                                ),
+                                rx.el.button(
+                                    rx.cond(
+                                        CustomerState.signup_mode,
+                                        "Already have an account? Log in",
+                                        "New here? Create an account",
+                                    ),
+                                    on_click=CustomerState.toggle_signup,
+                                    disabled=CustomerState.busy,
+                                    type="button",
+                                    class_name="text-sm text-[var(--studio-accent)] underline underline-offset-4 mt-6",
+                                ),
+                            ),
                         ),
-                        class_name="font-['Cormorant_Garamond'] text-4xl mb-6",
-                    ),
-                    feedback(),
-                    rx.el.form(
-                        rx.cond(
-                            CustomerState.signup_mode,
+                        rx.el.div(
+                            rx.el.p(
+                                "Loading your account…",
+                                role="status",
+                                class_name="text-sm text-[var(--studio-text)]/65",
+                            ),
                             rx.el.div(
-                                field("Your name", "name", autocomplete="name"),
-                                field(
-                                    "International phone number",
-                                    "phone",
-                                    "tel",
-                                    placeholder="+91 98765 43210",
-                                    autocomplete="tel",
-                                ),
-                                rx.el.p(
-                                    "Include + and your country code. This number is not verified by SMS.",
-                                    class_name="text-xs leading-6 text-[var(--studio-text)]/60",
-                                ),
-                                field(
-                                    "Email (optional)",
-                                    "email",
-                                    "email",
-                                    required=False,
-                                    autocomplete="email",
-                                ),
-                                class_name="space-y-5",
-                            ),
-                            field(
-                                "Phone or saved email",
-                                "identifier",
-                                placeholder="+91… or your email",
-                                autocomplete="username",
+                                class_name="h-64 animate-pulse bg-[var(--studio-text)]/5 mt-5"
                             ),
                         ),
-                        field(
-                            "Password",
-                            "password",
-                            "password",
-                            autocomplete=rx.cond(
-                                CustomerState.signup_mode,
-                                "new-password",
-                                "current-password",
-                            ),
-                        ),
-                        rx.cond(
-                            CustomerState.signup_mode,
-                            rx.el.div(
-                                rx.el.p(
-                                    "Use 12–256 characters. Your optional email can also be used to log in.",
-                                    class_name="text-xs leading-6 text-[var(--studio-text)]/60 mb-5",
-                                ),
-                                field(
-                                    "Confirm password",
-                                    "confirm_password",
-                                    "password",
-                                    autocomplete="new-password",
-                                ),
-                            ),
-                        ),
-                        rx.el.button(
-                            rx.cond(
-                                CustomerState.busy,
-                                "Please wait…",
-                                rx.cond(
-                                    CustomerState.signup_mode,
-                                    "Create account",
-                                    "Log in",
-                                ),
-                            ),
-                            rx.icon("arrow-right", class_name="h-4 w-4"),
-                            type="submit",
-                            disabled=CustomerState.busy,
-                            class_name=BUTTON,
-                        ),
-                        on_submit=CustomerState.authenticate_form,
-                        key=CustomerState.signup_mode,
-                        class_name="flex flex-col gap-5 mt-5",
-                    ),
-                    rx.el.button(
-                        rx.cond(
-                            CustomerState.signup_mode,
-                            "Already have an account? Log in",
-                            "New here? Create an account",
-                        ),
-                        on_click=CustomerState.toggle_signup,
-                        disabled=CustomerState.busy,
-                        type="button",
-                        class_name="text-sm text-[var(--studio-accent)] underline underline-offset-4 mt-6",
                     ),
                     class_name="p-1 md:p-6",
                 ),
@@ -271,6 +303,9 @@ def dashboard_page() -> rx.Component:
                     rx.el.div(
                         action_link("Explore bouquets", "/bouquets"),
                         action_link("Book a portrait", "/portraits"),
+                        action_link(
+                            "Change password", "/login?password=change"
+                        ),
                         rx.el.button(
                             "Refresh orders",
                             rx.icon("refresh-cw", class_name="h-4 w-4"),

@@ -133,6 +133,7 @@ def authorized_workspace() -> rx.Component:
             action_link("Curate bouquets", "#admin-bouquets"),
             action_link("Portrait options", "#admin-portraits"),
             action_link("Site settings & QR", "#admin-settings"),
+            action_link("Change password", "/login?password=change"),
             aria_label="Workspace sections",
             class_name="flex flex-wrap gap-3 mb-12",
         ),

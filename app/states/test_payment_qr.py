@@ -63,7 +63,12 @@ class PaymentQRTests(unittest.TestCase):
 
     def accounts(self):
         store = StoreRepository(self.root / "store.sqlite3")
-        admin = store.signup("Owner", "+919876543210", "a secure test password")
+        with connection(store.database_path) as conn:
+            owner_id = conn.execute(
+                "SELECT id FROM users WHERE username = 'admin'"
+            ).fetchone()[0]
+        store.change_password(owner_id, "password", "a rotated owner password")
+        admin = store.get_customer(owner_id, owner_id)
         customer = store.signup(
             "Customer", "+919876543211", "another secure password"
         )
@@ -105,13 +110,17 @@ class PaymentQRTests(unittest.TestCase):
         initialize_database(database)
         with connection(database) as conn:
             self.assertEqual(
-                conn.execute("PRAGMA user_version").fetchone()[0], 2
+                conn.execute("PRAGMA user_version").fetchone()[0], 4
             )
             for table, rows in before.items():
                 self.assertEqual(
                     [
                         tuple(row)
-                        for row in conn.execute(f"SELECT * FROM {table}")
+                        for row in conn.execute(
+                            "SELECT id, name, phone, email, password_hash, is_admin, created_at FROM users WHERE username = ''"
+                            if table == "users"
+                            else f"SELECT * FROM {table}"
+                        )
                     ],
                     rows,
                 )

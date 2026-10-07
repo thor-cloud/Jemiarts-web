@@ -84,7 +84,32 @@ class AdminState(rx.State):
         self.portrait_sizes = []
         self.portrait_styles = []
         self.delete_id = 0
-        self.error = "Administrator access is required. Sign in with the studio owner's account."
+        self.delete_kind = ""
+        self.delete_name = ""
+        self.notice = ""
+        self._bouquet_upload = ""
+        self._hero_upload = ""
+        self._payment_qr_upload = ""
+        self.bouquet_id = 0
+        self.bouquet_name = ""
+        self.bouquet_price = ""
+        self.bouquet_image = ""
+        self.hero_image = ""
+        self.payment_qr_image = ""
+        self.settings = {
+            "id": 1,
+            "brand_name": "Artist Studio",
+            "background_color": "#F7F3EC",
+            "text_color": "#29231E",
+            "accent_color": "#B76D50",
+            "hero_image_path": "",
+            "payment_qr_path": "",
+            "welcome_text": "",
+            "artist_biography": "",
+            "contact_number": "",
+            "updated_at": "",
+        }
+        self.error = "Administrator access is required. Sign in with the studio owner's account and complete any required password change."
 
     def _image(self, filename: str) -> str:
         if not filename:
@@ -166,7 +191,7 @@ class AdminState(rx.State):
             self.allowed = True
         except PermissionError:
             logging.exception("Unexpected error")
-            logging.info("Studio access denied")
+            logging.debug("Studio access denied")
             self._deny()
         except Exception as e:
             logging.exception(f"Error: {e}")
@@ -191,8 +216,8 @@ class AdminState(rx.State):
             )
             self._load_orders(repository, actor)
             self.notice = f"Order #{order_id} status saved. WhatsApp only opens a draft; nothing has been sent."
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
+        except PermissionError:
+            logging.exception("Unexpected error")
             self._deny()
         except (ValueError, LookupError) as e:
             logging.exception(f"Error: {e}")
@@ -222,8 +247,8 @@ class AdminState(rx.State):
                     "document.getElementById('bouquet-editor')?.scrollIntoView({behavior:'smooth'})"
                 ),
             ]
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
+        except PermissionError:
+            logging.exception("Unexpected error")
             self._deny()
         except Exception as e:
             logging.exception(f"Error: {e}")
@@ -241,7 +266,8 @@ class AdminState(rx.State):
             self.bouquet_image = ""
             return rx.clear_selected_files("admin-bouquet")
         except PermissionError as e:
-            logging.exception(f"Error: {e}")
+            logging.exception("Unexpected error")
+            logging.debug("Studio access denied")
             self._deny()
 
     @rx.event

@@ -1,5 +1,7 @@
 import reflex as rx
 import logging
+import hashlib
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -9,7 +11,7 @@ from collections.abc import Iterator
 LOCAL_DATABASE = (
     Path(__file__).resolve().parents[2] / ".local" / "artist_store.sqlite3"
 )
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS users (
@@ -83,6 +85,45 @@ PORTRAIT_SCHEMA = (
 )
 
 
+def migrate_v3_to_v4(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+    if "username" not in columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN username TEXT NOT NULL DEFAULT '' CHECK(username = '' OR length(trim(username)) > 0)"
+        )
+    if "must_change_password" not in columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0 CHECK(must_change_password IN (0, 1))"
+        )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users(username) WHERE username != ''"
+    )
+    conn.execute("PRAGMA user_version = 4")
+
+
+def seed_owner(conn: sqlite3.Connection) -> None:
+    if (
+        conn.execute(
+            "SELECT 1 FROM users WHERE username = ?", ("admin",)
+        ).fetchone()
+        is not None
+    ):
+        return
+    from app.states.store_validation import PASSWORD_ITERATIONS
+
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", b"password", salt, PASSWORD_ITERATIONS
+    )
+    encoded = f"pbkdf2_sha256${PASSWORD_ITERATIONS}${salt.hex()}${digest.hex()}"
+    conn.execute(
+        """INSERT INTO users
+        (username, name, phone, email, password_hash, is_admin, must_change_password)
+        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        ("admin", "Studio Owner", "", "", encoded, 1, 1),
+    )
+
+
 def migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
     for statement in PORTRAIT_SCHEMA:
         conn.execute(statement)
@@ -116,16 +157,16 @@ def connection(
         conn.execute("BEGIN IMMEDIATE")
         yield conn
         conn.commit()
+    except (PermissionError, ValueError, LookupError):
+        logging.exception("Unexpected error")
+        logging.debug("Request rejected")
+        if conn is not None:
+            conn.rollback()
+        raise
     except (sqlite3.Error, OSError) as error:
         if conn is not None:
             conn.rollback()
         logging.exception(f"Error: {error}")
-        raise
-    except (PermissionError, ValueError, LookupError):
-        logging.exception("Unexpected error")
-        logging.info("Request validation or access denied")
-        if conn is not None:
-            conn.rollback()
         raise
     except Exception:
         if conn is not None:
@@ -140,7 +181,7 @@ def connection(
 def initialize_database(database_path: Path = LOCAL_DATABASE) -> None:
     with connection(database_path) as conn:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, SCHEMA_VERSION):
             raise RuntimeError(
                 "Unsupported SQLite schema version; migration required."
             )
@@ -174,3 +215,5 @@ def initialize_database(database_path: Path = LOCAL_DATABASE) -> None:
         else:
             for statement in PORTRAIT_SCHEMA:
                 conn.execute(statement)
+        migrate_v3_to_v4(conn)
+        seed_owner(conn)

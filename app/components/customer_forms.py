@@ -56,6 +56,95 @@ def field(
     )
 
 
+def password_change_form() -> rx.Component:
+    return rx.el.div(
+        rx.icon(
+            "shield-check",
+            class_name="h-8 w-8 text-[var(--studio-accent)] mb-5",
+        ),
+        rx.el.h2(
+            rx.cond(
+                CustomerState.must_change_password,
+                "Make this account yours.",
+                "Change your password",
+            ),
+            class_name="font-['Cormorant_Garamond'] text-4xl text-[var(--studio-text)] mb-5",
+        ),
+        rx.el.p(
+            rx.cond(
+                CustomerState.must_change_password,
+                "Before opening the studio workspace, choose a personal password. Orders and workspace controls remain locked until this step is complete.",
+                "Choose a new password to keep your account secure. Other signed-in sessions will be signed out; you will stay signed in here.",
+            ),
+            class_name="text-sm leading-7 text-[var(--studio-text)]/65 mb-6",
+        ),
+        feedback(),
+        rx.el.form(
+            rx.el.fieldset(
+                field(
+                    "Current password",
+                    "current_password",
+                    "password",
+                    autocomplete="current-password",
+                ),
+                field(
+                    "New password",
+                    "new_password",
+                    "password",
+                    autocomplete="new-password",
+                ),
+                rx.el.p(
+                    "Use 12–256 characters, different from your current password.",
+                    class_name="text-xs leading-6 text-[var(--studio-text)]/60",
+                ),
+                field(
+                    "Confirm new password",
+                    "confirm_password",
+                    "password",
+                    autocomplete="new-password",
+                ),
+                disabled=CustomerState.busy,
+                class_name="flex flex-col gap-5",
+            ),
+            rx.el.button(
+                rx.cond(
+                    CustomerState.busy,
+                    "Updating password…",
+                    "Save password & continue",
+                ),
+                rx.icon("arrow-right", class_name="h-4 w-4"),
+                type="submit",
+                disabled=CustomerState.busy,
+                class_name=BUTTON,
+            ),
+            on_submit=CustomerState.change_password_form,
+            reset_on_submit=True,
+            aria_busy=CustomerState.busy,
+            class_name="flex flex-col gap-5 mt-5",
+        ),
+        rx.el.div(
+            rx.cond(
+                ~CustomerState.must_change_password,
+                rx.el.a(
+                    "Cancel & return to your account",
+                    href=rx.cond(
+                        CustomerState.admin_access, "/admin", "/dashboard"
+                    ),
+                    class_name="text-sm text-[var(--studio-accent)] underline underline-offset-4",
+                ),
+            ),
+            rx.el.button(
+                "Log out",
+                on_click=CustomerState.logout,
+                disabled=CustomerState.busy,
+                type="button",
+                class_name="text-sm text-[var(--studio-text)] underline underline-offset-4",
+            ),
+            class_name="flex flex-wrap gap-5 mt-6",
+        ),
+    )
+
+
 def image_picker(upload_id: str, label: str) -> rx.Component:
     return rx.el.div(
         rx.upload.root(
