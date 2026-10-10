@@ -116,7 +116,10 @@ class AdminState(rx.State):
             return ""
         try:
             return require_saved_upload(filename)
-        except (ValueError, OSError) as e:
+        except (ValueError, FileNotFoundError):
+            logging.exception("Unexpected error")
+            return ""
+        except OSError as e:
             logging.exception(f"Error: {e}")
             return ""
 
@@ -189,13 +192,12 @@ class AdminState(rx.State):
                 self._payment_qr_upload or self.settings["payment_qr_path"]
             )
             self.allowed = True
-        except PermissionError:
-            logging.exception("Unexpected error")
-            logging.debug("Studio access denied")
-            self._deny()
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "The workspace could not be loaded. Please retry."
+            if isinstance(e, PermissionError):
+                self._deny()
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "The workspace could not be loaded. Please retry."
         finally:
             self.ready = True
 
@@ -216,15 +218,14 @@ class AdminState(rx.State):
             )
             self._load_orders(repository, actor)
             self.notice = f"Order #{order_id} status saved. WhatsApp only opens a draft; nothing has been sent."
-        except PermissionError:
-            logging.exception("Unexpected error")
-            self._deny()
-        except (ValueError, LookupError) as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Status could not be saved. Refresh and try again."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Status could not be saved. Refresh and try again."
         finally:
             self.busy = False
 
@@ -247,12 +248,14 @@ class AdminState(rx.State):
                     "document.getElementById('bouquet-editor')?.scrollIntoView({behavior:'smooth'})"
                 ),
             ]
-        except PermissionError:
-            logging.exception("Unexpected error")
-            self._deny()
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "This bouquet could not be opened."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = "This bouquet could not be opened."
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "This bouquet could not be opened."
 
     @rx.event
     async def new_bouquet(self):
@@ -265,10 +268,12 @@ class AdminState(rx.State):
             self.bouquet_price = ""
             self.bouquet_image = ""
             return rx.clear_selected_files("admin-bouquet")
-        except PermissionError as e:
-            logging.exception("Unexpected error")
-            logging.debug("Studio access denied")
-            self._deny()
+        except Exception as e:
+            if isinstance(e, PermissionError):
+                self._deny()
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "A new bouquet could not be started. Please retry."
 
     @rx.event
     async def stage_bouquet_image(self, files: list[rx.UploadFile]):
@@ -320,15 +325,14 @@ class AdminState(rx.State):
             staged = True
             self.notice = "Image uploaded. Save the form below to publish it."
             return rx.clear_selected_files(f"admin-{target}")
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
-        except ValueError as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Image upload failed. Please try again."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Image upload failed. Please try again."
         finally:
             if filename and not staged:
                 self._discard(filename)
@@ -365,15 +369,14 @@ class AdminState(rx.State):
             from app.states.public_state import PublicState
 
             yield PublicState.load_public
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
-        except (ValueError, LookupError) as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Bouquet could not be saved. Your uploaded image is retained for retry."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Bouquet could not be saved. Your uploaded image is retained for retry."
         finally:
             self.busy = False
 
@@ -412,15 +415,14 @@ class AdminState(rx.State):
 
             public = await self.get_state(PublicState)
             public._refresh_portrait_options(repository)
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
-        except (ValueError, LookupError) as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Portrait option could not be saved. Please retry."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Portrait option could not be saved. Please retry."
         finally:
             self.busy = False
 
@@ -447,12 +449,14 @@ class AdminState(rx.State):
             self.delete_kind = kind
             self.delete_id = option_id
             self.delete_name = option["name"]
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = str(e)
 
     @rx.event
     async def cancel_portrait_delete(self):
@@ -462,12 +466,12 @@ class AdminState(rx.State):
             await self._authorized()
             self.delete_id = 0
             self.delete_kind = ""
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Could not refresh access. Please retry."
+            if isinstance(e, PermissionError):
+                self._deny()
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Could not refresh access. Please retry."
 
     @rx.event
     async def confirm_portrait_delete(self):
@@ -493,15 +497,14 @@ class AdminState(rx.State):
             self.notice = (
                 "Portrait option removed. Historical orders are unchanged."
             )
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
-        except (ValueError, LookupError) as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Option could not be removed. Please retry."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Option could not be removed. Please retry."
         finally:
             self.busy = False
 
@@ -545,14 +548,13 @@ class AdminState(rx.State):
             from app.states.public_state import PublicState
 
             yield PublicState.load_public
-        except PermissionError as e:
-            logging.exception(f"Error: {e}")
-            self._deny()
-        except ValueError as e:
-            logging.exception(f"Error: {e}")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = "Settings could not be saved. Please retry."
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = "Settings could not be saved. Please retry."
         finally:
             self.busy = False

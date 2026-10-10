@@ -253,6 +253,69 @@ class OwnerLoginTests(unittest.TestCase):
             )
             redirect.assert_called_once_with("/admin")
 
+    def test_invalid_password_input_preserves_account_without_exception_logging(
+        self,
+    ):
+        actor = self.owner["id"]
+        tokens = [self.store.create_session(actor) for _ in range(2)]
+        with connection(self.store.database_path) as conn:
+            original_hash = conn.execute(
+                "SELECT password_hash FROM users WHERE id = ?", (actor,)
+            ).fetchone()["password_hash"]
+        for replacement, confirmation, message in (
+            ("x" * 11, "x" * 11, "Password must contain 12–256 characters."),
+            ("x" * 257, "x" * 257, "Password must contain 12–256 characters."),
+            ("short", "different", "Passwords do not match."),
+        ):
+            with self.subTest(length=len(replacement), message=message):
+                state = self.state(tokens[0])
+                state.password_change_mode = True
+                with (
+                    patch(
+                        "app.states.customer_state.logging.exception"
+                    ) as exception_log,
+                    patch.object(
+                        self.store,
+                        "change_password",
+                        wraps=self.store.change_password,
+                    ) as change_password,
+                    patch.object(rx, "redirect") as redirect,
+                ):
+                    updates = self.consume(
+                        CustomerState.change_password_form,
+                        state,
+                        {
+                            "current_password": "password",
+                            "new_password": replacement,
+                            "confirm_password": confirmation,
+                        },
+                    )
+                    exception_log.assert_not_called()
+                    change_password.assert_not_called()
+                    redirect.assert_not_called()
+                self.assertEqual(updates, [None])
+                self.assertEqual(state.error, message)
+                self.assertFalse(state.busy)
+                self.assertEqual(state.notice, "")
+                self.assertEqual(state.session_token, tokens[0])
+                self.assertTrue(state.authenticated)
+                self.assertTrue(state.must_change_password)
+                self.assertTrue(state.password_change_mode)
+                self.assertFalse(state.admin_access)
+                for token in tokens:
+                    customer = self.store.session_customer(token)
+                    self.assertEqual(customer["id"], actor)
+                    self.assertTrue(customer["must_change_password"])
+                self.assertIsNotNone(
+                    self.store.authenticate("admin", "password")
+                )
+                self.assertIsNone(self.store.authenticate("admin", replacement))
+                with connection(self.store.database_path) as conn:
+                    saved_hash = conn.execute(
+                        "SELECT password_hash FROM users WHERE id = ?", (actor,)
+                    ).fetchone()["password_hash"]
+                self.assertEqual(saved_hash, original_hash)
+
     def test_customer_remembered_checkout_and_optional_rotation_form(self):
         buyer = self.store.signup(
             "Buyer", "+919876543210", "secure buyer password"

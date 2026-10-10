@@ -62,8 +62,11 @@ def open_private_file(
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
             raise ValueError("Image unavailable.")
         return descriptor
-    except Exception:
-        logging.exception("Unexpected error")
+    except Exception as e:
+        if not isinstance(
+            e, (PermissionError, ValueError, LookupError, FileNotFoundError)
+        ):
+            logging.exception(f"Error: {e}")
         os.close(descriptor)
         raise
 

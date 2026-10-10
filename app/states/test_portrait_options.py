@@ -105,7 +105,7 @@ class PortraitOptionTests(unittest.TestCase):
                     rows,
                 )
             self.assertEqual(
-                conn.execute("PRAGMA user_version").fetchone()[0], 3
+                conn.execute("PRAGMA user_version").fetchone()[0], 4
             )
             self.assertEqual(
                 conn.execute("SELECT count(*) FROM portrait_sizes").fetchone()[

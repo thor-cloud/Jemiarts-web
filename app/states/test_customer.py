@@ -71,8 +71,10 @@ class CustomerIntegrationTests(unittest.TestCase):
             portrait_style_id=self.repository.list_portrait_styles()[0]["id"],
             reference_upload_path="reference.png",
         )
-        with patch.object(rx, "get_upload_dir", return_value=self.root):
-            with self.assertRaises(ValueError):
+        public = self.root / "public"
+        public.mkdir()
+        with patch.object(rx, "get_upload_dir", return_value=public):
+            with self.assertRaises(FileNotFoundError):
                 self.repository.submit_payment_proof(
                     self.customer["id"], order["id"], "missing.png"
                 )
@@ -399,13 +401,25 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                 }
                 state._load_payment_qr(repository)
                 self.assertTrue(state.qr_available)
+                self.assertEqual(state.qr_image_path, "")
+                self.assertTrue(
+                    state.qr_image_url.startswith("data:image/png;base64,")
+                )
                 qr = root / "artist.png"
                 qr.touch()
                 state._load_payment_qr(repository)
-                self.assertFalse(state.qr_available)
+                self.assertTrue(state.qr_available)
+                self.assertEqual(state.qr_image_path, "")
+                self.assertTrue(
+                    state.qr_image_url.startswith("data:image/png;base64,")
+                )
                 qr.write_bytes(b"not an image or QR")
                 state._load_payment_qr(repository)
-                self.assertFalse(state.qr_available)
+                self.assertTrue(state.qr_available)
+                self.assertEqual(state.qr_image_path, "")
+                self.assertTrue(
+                    state.qr_image_url.startswith("data:image/png;base64,")
+                )
                 qr.write_bytes(png_test_image())
                 state._load_payment_qr(repository)
                 self.assertTrue(state.qr_available)
@@ -420,22 +434,31 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                         "payment_qr_path": invalid
                     }
                     state._load_payment_qr(repository)
-                    self.assertFalse(state.qr_available)
+                    self.assertTrue(state.qr_available)
                     self.assertEqual(state.qr_image_path, "")
+                    self.assertTrue(
+                        state.qr_image_url.startswith("data:image/png;base64,")
+                    )
                 repository.get_settings.return_value = {
                     "payment_qr_path": "artist.png"
                 }
                 qr.unlink()
                 qr.symlink_to(root / "missing.png")
                 state._load_payment_qr(repository)
-                self.assertFalse(state.qr_available)
+                self.assertTrue(state.qr_available)
                 self.assertEqual(state.qr_image_path, "")
+                self.assertTrue(
+                    state.qr_image_url.startswith("data:image/png;base64,")
+                )
         with patch(
             "app.states.store_uploads.Path.is_file", side_effect=OSError
         ):
             state._load_payment_qr(repository)
             self.assertTrue(state.qr_available)
             self.assertEqual(state.qr_image_path, "")
+            self.assertTrue(
+                state.qr_image_url.startswith("data:image/png;base64,")
+            )
 
     def test_checkout_loads_saved_qr_and_rechecks_after_upload(self):
         state = self.state(token="valid")
@@ -487,6 +510,10 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                 )
                 file.close.assert_awaited()
                 self.assertTrue(state.qr_available)
+                self.assertEqual(state.qr_image_path, "")
+                self.assertTrue(
+                    state.qr_image_url.startswith("data:image/png;base64,")
+                )
                 self.assertIn("not payment confirmation", state.notice)
                 repository.submit_payment_proof.reset_mock()
                 repository.get_settings.side_effect = [
@@ -502,8 +529,11 @@ class CustomerFlowRegressionTests(unittest.TestCase):
                     1, 42, "proof.png"
                 )
                 self.assertTrue((root / "proof.png").exists())
-                self.assertFalse(state.qr_available)
+                self.assertTrue(state.qr_available)
                 self.assertEqual(state.qr_image_path, "")
+                self.assertTrue(
+                    state.qr_image_url.startswith("data:image/png;base64,")
+                )
 
     def test_portrait_requires_exactly_one_reference_without_error_logging(
         self,
@@ -638,8 +668,35 @@ class CustomerFlowRegressionTests(unittest.TestCase):
     def test_checkout_qr_and_customer_event_wiring(self):
         root = Path(__file__).resolve().parents[1]
         checkout = (root / "components" / "customer_pages.py").read_text()
-        self.assertIn(
-            "rx.get_upload_url(CustomerState.qr_image_path)", checkout
+        checkout_tree = ast.parse(checkout)
+        qr_source = next(
+            keyword.value
+            for node in ast.walk(checkout_tree)
+            if isinstance(node, ast.Call)
+            and ast.unparse(node.func) == "rx.el.img"
+            for keyword in node.keywords
+            if keyword.arg == "src"
+            and isinstance(keyword.value, ast.Call)
+            and ast.unparse(keyword.value.func) == "rx.cond"
+            and any(
+                isinstance(argument, ast.Call)
+                and ast.unparse(argument.func) == "rx.get_upload_url"
+                for argument in keyword.value.args
+            )
+        )
+        self.assertEqual(
+            ast.unparse(qr_source.args[0]),
+            "CustomerState.qr_image_path != ''",
+        )
+        saved_qr = qr_source.args[1]
+        self.assertIsInstance(saved_qr, ast.Call)
+        self.assertEqual(ast.unparse(saved_qr.func), "rx.get_upload_url")
+        self.assertEqual(len(saved_qr.args), 1)
+        self.assertEqual(
+            ast.unparse(saved_qr.args[0]), "CustomerState.qr_image_path"
+        )
+        self.assertEqual(
+            ast.unparse(qr_source.args[2]), "CustomerState.qr_image_url"
         )
         self.assertNotIn("upi-qr.png", checkout)
         self.assertNotIn("placeholder.svg", checkout)

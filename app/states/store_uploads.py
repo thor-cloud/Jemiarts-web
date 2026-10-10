@@ -98,7 +98,6 @@ def _verify_png(data: bytes) -> None:
                             "Payment QR PNG image data is invalid or too large."
                         )
                 except zlib.error as e:
-                    logging.exception(f"Error: {e}")
                     raise ValueError(
                         "Payment QR PNG image data is invalid."
                     ) from e
@@ -150,7 +149,10 @@ async def save_image_upload(
         path.chmod(0o600)
         return filename
     except (OSError, ValueError) as error:
-        logging.exception(f"Error: {error}")
+        if not isinstance(
+            error, (PermissionError, ValueError, FileNotFoundError)
+        ):
+            logging.exception(f"Error: {error}")
         if path is not None:
             path.unlink(missing_ok=True)
         raise

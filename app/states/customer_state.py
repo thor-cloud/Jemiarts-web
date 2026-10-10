@@ -149,7 +149,9 @@ class CustomerState(rx.State):
                 self.qr_image_path = require_saved_png(filename)
                 self.qr_available = True
                 return
-            except (OSError, ValueError) as e:
+            except (ValueError, FileNotFoundError):
+                logging.exception("Unexpected error")
+            except OSError as e:
                 logging.exception(f"Error: {e}")
         self.qr_image_url = self._built_in_payment_qr()
         self.qr_available = True
@@ -230,7 +232,6 @@ class CustomerState(rx.State):
                             customer["id"], int(raw_id)
                         )
                     except PermissionError as e:
-                        logging.exception(f"Error: {e}")
                         raise LookupError(
                             "Order not found for your account."
                         ) from e
@@ -249,7 +250,7 @@ class CustomerState(rx.State):
                 )
                 return rx.redirect("/login")
         except (ValueError, LookupError) as e:
-            logging.exception(f"Error: {e}")
+            logging.exception("Unexpected error")
             self.error = "This order could not be found for your account. Choose an order from your dashboard."
         except Exception as e:
             logging.exception(f"Error: {e}")
@@ -315,7 +316,6 @@ class CustomerState(rx.State):
             )
             yield rx.redirect(destination)
         except ValueError as e:
-            logging.exception(f"Error: {e}")
             self.error = str(e)
         except Exception as e:
             logging.exception(f"Error: {e}")
@@ -345,7 +345,11 @@ class CustomerState(rx.State):
             self._auth_attempts.append(now)
             replacement = str(form_data.get("new_password", ""))
             if replacement != str(form_data.get("confirm_password", "")):
-                raise ValueError("Passwords do not match.")
+                self.error = "Passwords do not match."
+                return
+            if not 12 <= len(replacement) <= 256:
+                self.error = "Password must contain 12–256 characters."
+                return
             repository.change_password(
                 customer["id"],
                 str(form_data.get("current_password", "")),
@@ -365,7 +369,6 @@ class CustomerState(rx.State):
                 "/admin" if customer["is_admin"] else "/dashboard"
             )
         except (ValueError, PermissionError) as e:
-            logging.exception(f"Error: {e}")
             self.error = str(e)
             try:
                 self._repository_customer()
@@ -477,7 +480,6 @@ class CustomerState(rx.State):
         self.error = ""
         filename = ""
         committed = False
-        invalid_reference_count = False
         try:
             if not self.session_token:
                 self._clear_identity()
@@ -496,7 +498,6 @@ class CustomerState(rx.State):
 
             public = await self.get_state(PublicState)
             if len(files) != 1:
-                invalid_reference_count = True
                 raise ValueError("Select one reference image before ordering.")
             if not public.portrait_size_id or not public.portrait_style_id:
                 raise ValueError("Choose an available portrait size and style.")
@@ -515,8 +516,6 @@ class CustomerState(rx.State):
                 rx.redirect(f"/checkout?order={order['id']}"),
             ]
         except (ValueError, LookupError) as e:
-            if not invalid_reference_count:
-                logging.exception(f"Error: {e}")
             self.error = str(e)
             if isinstance(e, LookupError):
                 try:
@@ -556,7 +555,6 @@ class CustomerState(rx.State):
             try:
                 order = repository.customer_order(customer["id"], order_id)
             except PermissionError as e:
-                logging.exception(f"Error: {e}")
                 raise LookupError(
                     "This order could not be found for your account."
                 ) from e
@@ -592,19 +590,19 @@ class CustomerState(rx.State):
             )
             return rx.clear_selected_files("payment-proof")
         except PermissionError as e:
-            logging.exception(f"Error: {e}")
+            logging.exception("Unexpected error")
             self.session_token = ""
             self._remember_account_path()
             self._clear_identity()
             return rx.redirect("/login")
-        except (ValueError, LookupError) as e:
-            logging.exception("Unexpected error")
-            self.error = str(e)
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self.error = (
-                "Your payment proof could not be saved. Please try again."
-            )
+            if isinstance(e, (ValueError, LookupError)):
+                self.error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.error = (
+                    "Your payment proof could not be saved. Please try again."
+                )
         finally:
             if filename and not committed:
                 try:

@@ -65,10 +65,11 @@ def _response(request: Request, database_path: Path) -> Response:
             actor = repository.session_customer(
                 request.cookies.get("studio_session", "")
             )
-        except PermissionError:
-            logging.exception("Unexpected error")
-            logging.debug("Private image unavailable")
-            return _error(401)
+        except Exception as e:
+            if isinstance(e, PermissionError):
+                return _error(401)
+            logging.exception(f"Error: {e}")
+            return _error(404)
         try:
             if actor["is_admin"]:
                 repository.session_admin(
@@ -90,9 +91,11 @@ def _response(request: Request, database_path: Path) -> Response:
             response = PrivateImageResponse(descriptor, mime)
             descriptor = -1
             return response
-        except (PermissionError, LookupError, ValueError, FileNotFoundError):
-            logging.exception("Unexpected error")
-            logging.debug("Private image unavailable")
+        except Exception as e:
+            if not isinstance(
+                e, (PermissionError, LookupError, ValueError, FileNotFoundError)
+            ):
+                logging.exception(f"Error: {e}")
             return _error(404)
     except Exception as e:
         logging.exception(f"Error: {e}")

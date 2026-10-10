@@ -158,8 +158,6 @@ def connection(
         yield conn
         conn.commit()
     except (PermissionError, ValueError, LookupError):
-        logging.exception("Unexpected error")
-        logging.debug("Request rejected")
         if conn is not None:
             conn.rollback()
         raise
