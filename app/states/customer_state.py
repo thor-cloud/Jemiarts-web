@@ -172,14 +172,17 @@ class CustomerState(rx.State):
             return
         try:
             self._repository_customer()
-        except PermissionError:
-            logging.exception("Unexpected error")
-            self.session_token = ""
-            self._clear_identity()
         except Exception as e:
-            logging.exception(f"Error: {e}")
-            self._clear_identity()
-            self.error = "Your account could not be loaded. Please try again."
+            if isinstance(e, PermissionError):
+                self.session_token = ""
+                self._clear_identity()
+                self.error = ""
+            else:
+                logging.exception(f"Error: {e}")
+                self._clear_identity()
+                self.error = (
+                    "Your account could not be loaded. Please try again."
+                )
 
     @rx.event
     def toggle_signup(self):
