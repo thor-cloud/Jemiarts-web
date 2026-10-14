@@ -2,4 +2,3 @@
 - [x] Extend the existing SQLite account schema and startup initialization for a unique owner username and one-time default admin credentials, preserving existing users, orders, settings, and the ivory/charcoal/terracotta editorial design with Cormorant Garamond and DM Sans.
 - [x] Enable username-based owner login and a safe first-sign-in password change within the existing account flow, with session-backed navigation to the protected studio workspace and customer signup remaining unprivileged.
 - [x] Connect the existing admin workspace to authorized SQLite orders, gallery and site settings, verify non-admin denial and saved edits, and retain the responsive current layout and protected private files.
-- [ ] Build the Admin Dashboard page.
