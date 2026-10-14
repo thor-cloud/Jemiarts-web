@@ -1,5 +1,6 @@
 import reflex as rx
 import logging
+import re
 from typing import Any, TypedDict, cast
 from urllib.parse import quote
 
@@ -40,6 +41,8 @@ class AdminState(rx.State):
     error: str = ""
     notice: str = ""
     orders: list[AdminOrder] = []
+    order_query: str = ""
+    order_status_filter: str = ""
     bouquets: list[Bouquet] = []
     portrait_sizes: list[PortraitSize] = []
     portrait_styles: list[PortraitStyle] = []
@@ -69,6 +72,56 @@ class AdminState(rx.State):
     _hero_upload: str = ""
     _payment_qr_upload: str = ""
 
+    @rx.var
+    def filtered_orders(self) -> list[AdminOrder]:
+        if not self.allowed:
+            return []
+        query = self.order_query.strip().casefold()
+        numeric_query = re.fullmatch(r"#?([0-9]+)", query)
+        order_number = ""
+        if numeric_query:
+            order_number = numeric_query.group(1).lstrip("0") or "0"
+        result: list[AdminOrder] = []
+        for order in self.orders:
+            if (
+                self.order_status_filter
+                and order["status"] != self.order_status_filter
+            ):
+                continue
+            if numeric_query:
+                matches = str(order["id"]) == order_number
+            else:
+                matches = (
+                    not query
+                    or query in order["name"].casefold()
+                    or query in order["status"].casefold()
+                    or query in order["status"].replace("_", " ").casefold()
+                )
+            if matches:
+                result.append(order)
+        return result
+
+    @rx.event
+    def set_order_query(self, value: str):
+        if not self.allowed:
+            self.order_query = ""
+            self.order_status_filter = ""
+            return
+        self.order_query = value
+
+    @rx.event
+    def set_order_status_filter(self, value: str):
+        if not self.allowed:
+            self.order_query = ""
+            self.order_status_filter = ""
+            return
+        self.order_status_filter = value if value in ORDER_TRANSITIONS else ""
+
+    @rx.event
+    def reset_order_filters(self):
+        self.order_query = ""
+        self.order_status_filter = ""
+
     async def _authorized(self) -> tuple[StoreRepository, int]:
         from app.states.customer_state import CustomerState
 
@@ -80,6 +133,8 @@ class AdminState(rx.State):
     def _deny(self):
         self.allowed = False
         self.orders = []
+        self.order_query = ""
+        self.order_status_filter = ""
         self.bouquets = []
         self.portrait_sizes = []
         self.portrait_styles = []

@@ -73,6 +73,91 @@ def workspace_overview() -> rx.Component:
     )
 
 
+def workspace_order_filters() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.div(
+                rx.el.label(
+                    "Search orders",
+                    html_for="workspace-order-search",
+                    class_name="block mb-2 text-sm font-medium text-[var(--studio-text)]",
+                ),
+                rx.el.div(
+                    rx.icon(
+                        "search",
+                        class_name="absolute left-3 top-3.5 h-4 w-4 pointer-events-none text-[var(--studio-accent)]",
+                    ),
+                    rx.el.input(
+                        id="workspace-order-search",
+                        type="search",
+                        placeholder="Customer name, order # or status",
+                        default_value=AdminState.order_query,
+                        on_change=AdminState.set_order_query.debounce(500),
+                        aria_describedby="workspace-order-search-help",
+                        class_name="w-full border border-[var(--studio-text)]/25 bg-[var(--studio-bg)] py-3 pl-10 pr-4 text-sm text-[var(--studio-text)] placeholder:text-[var(--studio-text)]/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--studio-accent)]",
+                    ),
+                    class_name="relative",
+                ),
+                rx.el.p(
+                    "Search by name or status; use a number or #number for an exact order match.",
+                    id="workspace-order-search-help",
+                    class_name="mt-2 text-xs leading-6 text-[var(--studio-text)]/60",
+                ),
+                class_name="flex-1 min-w-0",
+            ),
+            rx.el.div(
+                rx.el.label(
+                    "Order status",
+                    html_for="workspace-order-status",
+                    class_name="block mb-2 text-sm font-medium text-[var(--studio-text)]",
+                ),
+                rx.el.div(
+                    rx.el.select(
+                        rx.el.option("All statuses", value=""),
+                        rx.el.option(
+                            "Awaiting payment", value="awaiting_payment"
+                        ),
+                        rx.el.option("Payment review", value="payment_review"),
+                        rx.el.option("Confirmed", value="confirmed"),
+                        rx.el.option("In progress", value="in_progress"),
+                        rx.el.option("Completed", value="completed"),
+                        rx.el.option("Cancelled", value="cancelled"),
+                        id="workspace-order-status",
+                        value=AdminState.order_status_filter,
+                        on_change=AdminState.set_order_status_filter,
+                        class_name="w-full appearance-none border border-[var(--studio-text)]/25 bg-[var(--studio-bg)] px-4 py-3 pr-10 text-sm text-[var(--studio-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--studio-accent)]",
+                    ),
+                    rx.icon(
+                        "chevron-down",
+                        class_name="absolute right-3 top-3.5 h-4 w-4 pointer-events-none text-[var(--studio-text)]",
+                    ),
+                    class_name="relative",
+                ),
+                class_name="w-full md:w-64 shrink-0",
+            ),
+            class_name="flex flex-col md:flex-row items-start gap-4 w-full",
+        ),
+        rx.el.div(
+            rx.el.p(
+                f"Showing {AdminState.filtered_orders.length()} of {AdminState.orders.length()} orders",
+                role="status",
+                aria_live="polite",
+                aria_atomic=True,
+                class_name="text-sm text-[var(--studio-text)]/65",
+            ),
+            rx.el.button(
+                rx.icon("rotate-ccw", class_name="h-4 w-4"),
+                "Clear filters",
+                type="button",
+                on_click=AdminState.reset_order_filters,
+                class_name="inline-flex items-center gap-2 py-2 text-sm text-[var(--studio-accent)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4",
+            ),
+            class_name="flex flex-wrap items-center justify-between gap-3 mt-3",
+        ),
+        class_name="w-full mb-6 font-['DM_Sans']",
+    )
+
+
 def workspace_orders() -> rx.Component:
     return rx.el.section(
         section_title(
@@ -90,11 +175,37 @@ def workspace_orders() -> rx.Component:
             ),
             class_name="flex items-start gap-3 border-l-2 border-[var(--studio-accent)] pl-5 mb-8",
         ),
+        workspace_order_filters(),
         rx.cond(
             AdminState.orders.length() > 0,
-            rx.el.div(
-                rx.foreach(AdminState.orders, admin_order),
-                class_name="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start",
+            rx.cond(
+                AdminState.filtered_orders.length() > 0,
+                rx.el.div(
+                    rx.foreach(AdminState.filtered_orders, admin_order),
+                    class_name="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start",
+                ),
+                rx.el.div(
+                    rx.icon(
+                        "search-x",
+                        class_name="h-10 w-10 text-[var(--studio-accent)]",
+                    ),
+                    rx.el.h3(
+                        "No orders match these filters.",
+                        class_name="font-['Cormorant_Garamond'] text-3xl md:text-4xl text-[var(--studio-text)]",
+                    ),
+                    rx.el.p(
+                        "Try another customer name, exact order number or status, or clear both filters to see all saved orders.",
+                        class_name="max-w-xl text-sm leading-7 text-[var(--studio-text)]/65",
+                    ),
+                    rx.el.button(
+                        rx.icon("rotate-ccw", class_name="h-4 w-4"),
+                        "Reset filters",
+                        type="button",
+                        on_click=AdminState.reset_order_filters,
+                        class_name="inline-flex items-center gap-2 border border-[var(--studio-accent)]/35 px-5 py-3 text-sm text-[var(--studio-accent)] hover:bg-[var(--studio-accent)]/5 focus-visible:outline-2 focus-visible:outline-offset-4",
+                    ),
+                    class_name="flex flex-col items-center gap-5 border border-[var(--studio-text)]/15 px-6 py-14 text-center",
+                ),
             ),
             rx.el.div(
                 rx.icon(
