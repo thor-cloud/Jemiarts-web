@@ -12,7 +12,11 @@ from app.states.store_models import Customer, Order
 from app.states.store_repository import StoreRepository
 from app.states.store_uploads import require_saved_png
 from app.states.private_files import private_file
-from app.states.store_validation import quantity_value
+from app.states.store_validation import (
+    quantity_value,
+    text,
+    preferred_delivery_date,
+)
 
 
 class OrderView(TypedDict):
@@ -27,6 +31,11 @@ class OrderView(TypedDict):
     provisional: bool
     reference: bool
     proof: bool
+    is_bouquet: bool
+    recipient_name: str
+    delivery_address: str
+    preferred_delivery_date: str
+    gift_message: str
 
 
 class CustomerState(rx.State):
@@ -121,6 +130,21 @@ class CustomerState(rx.State):
             provisional=portrait,
             reference=bool(order.get("reference_upload_path", "")),
             proof=bool(order["payment_proof_path"]),
+            is_bouquet=order["kind"] == "bouquet",
+            recipient_name=order["details"].get("recipient_name", "")
+            if not portrait
+            else "",
+            delivery_address=order["details"].get("delivery_address", "")
+            if not portrait
+            else "",
+            preferred_delivery_date=order["details"].get(
+                "preferred_delivery_date", ""
+            )
+            if not portrait
+            else "",
+            gift_message=order["details"].get("gift_message", "")
+            if not portrait
+            else "",
         )
 
     def _built_in_payment_qr(self) -> str:
@@ -449,12 +473,39 @@ class CustomerState(rx.State):
         yield
         try:
             repository, customer = self._repository_customer()
-            quantity = quantity_value(int(str(form_data.get("quantity", ""))))
+            try:
+                quantity = quantity_value(
+                    int(str(form_data.get("quantity", "")).strip())
+                )
+            except (ValueError, TypeError) as e:
+                logging.exception(f"Error: {e}")
+                self.error = (
+                    "Quantity must be a whole number between 1 and 999."
+                )
+                return
+            recipient_name = text(
+                form_data.get("recipient_name", ""), "Recipient name", 120
+            )
+            delivery_address = text(
+                form_data.get("delivery_address", ""), "Delivery address", 1000
+            )
+            delivery_date = preferred_delivery_date(
+                form_data.get("preferred_delivery_date", "")
+            )
+            gift_message = text(
+                form_data.get("gift_message", ""), "Gift message", 500, False
+            )
             bouquet = repository.get_bouquet(self.bouquet_id)
             order = repository.create_order(
                 customer["id"],
                 "bouquet",
-                {"model_name": bouquet["name"]},
+                {
+                    "model_name": bouquet["name"],
+                    "recipient_name": recipient_name,
+                    "delivery_address": delivery_address,
+                    "preferred_delivery_date": delivery_date,
+                    "gift_message": gift_message,
+                },
                 quantity=quantity,
                 bouquet_id=bouquet["id"],
             )
@@ -466,9 +517,12 @@ class CustomerState(rx.State):
             self._clear_identity()
             self._next_path = "/bouquets"
             yield rx.redirect("/login")
-        except (ValueError, LookupError) as e:
+        except ValueError as e:
             logging.exception(f"Error: {e}")
-            self.error = "Choose an available model and a whole-number quantity between 1 and 999."
+            self.error = str(e)
+        except LookupError as e:
+            logging.exception(f"Error: {e}")
+            self.error = "This bouquet is no longer available. Refresh and choose an available model."
         except Exception as e:
             logging.exception(f"Error: {e}")
             self.error = "Your order could not be saved. Please try again."

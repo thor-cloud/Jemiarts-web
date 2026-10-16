@@ -14,6 +14,7 @@ from app.components.customer_forms import (
 )
 from app.states.customer_state import CustomerState, OrderView
 from app.components.protected_files import protected_file_link
+from app.components.bouquet_delivery import bouquet_delivery_details
 
 
 def page_heading(kicker: str, title: str, description: str) -> rx.Component:
@@ -221,6 +222,13 @@ def order_summary(order: OrderView) -> rx.Component:
                 "Provisional example amount — not an artist-confirmed quote. Confirm the final rate with the studio before paying; do not assume this sample amount is payable.",
                 class_name="text-xs leading-6 text-[var(--studio-accent)] mt-3",
             ),
+        ),
+        bouquet_delivery_details(
+            order["is_bouquet"],
+            order["recipient_name"],
+            order["delivery_address"],
+            order["preferred_delivery_date"],
+            order["gift_message"],
         ),
         rx.el.div(
             rx.icon("clock-3", class_name="h-4 w-4"),

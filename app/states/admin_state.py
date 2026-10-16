@@ -32,6 +32,11 @@ class AdminOrder(TypedDict):
     reference: bool
     proof: bool
     whatsapp: str
+    is_bouquet: bool
+    recipient_name: str
+    delivery_address: str
+    preferred_delivery_date: str
+    gift_message: str
 
 
 class AdminState(rx.State):
@@ -199,6 +204,23 @@ class AdminState(rx.State):
                     amount=order["total_price_paise"] / 100,
                     status=status,
                     options=[status, *ORDER_TRANSITIONS[status]],
+                    is_bouquet=order["kind"] == "bouquet",
+                    recipient_name=order["details"].get("recipient_name", "")
+                    if order["kind"] == "bouquet"
+                    else "",
+                    delivery_address=order["details"].get(
+                        "delivery_address", ""
+                    )
+                    if order["kind"] == "bouquet"
+                    else "",
+                    preferred_delivery_date=order["details"].get(
+                        "preferred_delivery_date", ""
+                    )
+                    if order["kind"] == "bouquet"
+                    else "",
+                    gift_message=order["details"].get("gift_message", "")
+                    if order["kind"] == "bouquet"
+                    else "",
                     reference=bool(order["reference_upload_path"]),
                     proof=bool(order["payment_proof_path"]),
                     whatsapp=f"https://wa.me/{customer['phone'].lstrip('+')}?text={quote(message, safe='')}",

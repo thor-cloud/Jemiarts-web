@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import re
 import secrets
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import PurePosixPath
 import logging
@@ -36,6 +37,24 @@ def text(value: str, label: str, maximum: int, required: bool = True) -> str:
     if (required and not result) or len(result) > maximum or "\x00" in result:
         raise ValueError(f"{label} is missing or too long.")
     return result
+
+
+def preferred_delivery_date(value: str) -> str:
+    value = text(value, "Preferred delivery date", 10)
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+        raise ValueError("Preferred delivery date must use YYYY-MM-DD.")
+    try:
+        preferred = date.fromisoformat(value)
+    except ValueError as e:
+        logging.exception(f"Error: {e}")
+        raise ValueError(
+            "Preferred delivery date must be a real calendar date."
+        ) from e
+    if preferred < date.today():
+        raise ValueError(
+            "Preferred delivery date cannot be earlier than today."
+        )
+    return value
 
 
 def phone_number(value: str, required: bool = True) -> str:

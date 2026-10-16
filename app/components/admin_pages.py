@@ -7,6 +7,7 @@ from app.components.public_collection import public_image
 from app.states.admin_state import AdminState, AdminOrder
 from app.states.store_models import Bouquet
 from app.components.protected_files import protected_file_link
+from app.components.bouquet_delivery import bouquet_delivery_details
 
 
 SETTINGS_FIELDS: list[dict[str, str]] = [
@@ -94,6 +95,13 @@ def admin_order(order: AdminOrder) -> rx.Component:
                 class_name="text-xl font-medium text-[var(--studio-text)]",
             ),
             class_name="flex flex-wrap justify-between gap-5",
+        ),
+        bouquet_delivery_details(
+            order["is_bouquet"],
+            order["recipient_name"],
+            order["delivery_address"],
+            order["preferred_delivery_date"],
+            order["gift_message"],
         ),
         rx.el.p(
             order["status"].split("_").join(" "),

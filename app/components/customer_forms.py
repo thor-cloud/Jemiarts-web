@@ -235,6 +235,92 @@ def bouquet_order_panel() -> rx.Component:
                         required=True,
                         class_name=INPUT,
                     ),
+                    rx.el.div(
+                        rx.el.div(
+                            rx.el.label(
+                                "Recipient name (required)",
+                                html_for="recipient_name",
+                                class_name="block text-sm text-[var(--studio-text)] mb-2",
+                            ),
+                            rx.el.input(
+                                id="recipient_name",
+                                name="recipient_name",
+                                type="text",
+                                required=True,
+                                max_length=120,
+                                auto_complete="shipping name",
+                                disabled=CustomerState.busy,
+                                class_name=INPUT,
+                            ),
+                        ),
+                        rx.el.div(
+                            rx.el.label(
+                                "Delivery address (required)",
+                                html_for="delivery_address",
+                                class_name="block text-sm text-[var(--studio-text)] mb-2",
+                            ),
+                            rx.el.textarea(
+                                id="delivery_address",
+                                name="delivery_address",
+                                required=True,
+                                max_length=1000,
+                                rows=4,
+                                auto_complete="shipping street-address",
+                                aria_describedby="bouquet-address-help",
+                                disabled=CustomerState.busy,
+                                class_name=INPUT,
+                            ),
+                            rx.el.p(
+                                "Include the street, locality, city and postal code so the studio can arrange delivery. Up to 1,000 characters.",
+                                id="bouquet-address-help",
+                                class_name="text-xs leading-6 text-[var(--studio-text)]/65 mt-2",
+                            ),
+                        ),
+                        rx.el.div(
+                            rx.el.label(
+                                "Preferred delivery date (required)",
+                                html_for="preferred_delivery_date",
+                                class_name="block text-sm text-[var(--studio-text)] mb-2",
+                            ),
+                            rx.el.input(
+                                id="preferred_delivery_date",
+                                name="preferred_delivery_date",
+                                type="date",
+                                required=True,
+                                aria_describedby="bouquet-date-help",
+                                disabled=CustomerState.busy,
+                                class_name=INPUT,
+                            ),
+                            rx.el.p(
+                                "Choose today or a future date. This is your preferred date, not a guaranteed delivery booking. The studio will confirm availability and delivery arrangements with you.",
+                                id="bouquet-date-help",
+                                class_name="text-xs leading-6 text-[var(--studio-text)]/65 mt-2",
+                            ),
+                        ),
+                        rx.el.div(
+                            rx.el.label(
+                                "Gift message (optional)",
+                                html_for="gift_message",
+                                class_name="block text-sm text-[var(--studio-text)] mb-2",
+                            ),
+                            rx.el.textarea(
+                                id="gift_message",
+                                name="gift_message",
+                                required=False,
+                                max_length=500,
+                                rows=3,
+                                aria_describedby="bouquet-message-help",
+                                disabled=CustomerState.busy,
+                                class_name=INPUT,
+                            ),
+                            rx.el.p(
+                                "Add a personal note of up to 500 characters, or leave this blank for no gift message.",
+                                id="bouquet-message-help",
+                                class_name="text-xs leading-6 text-[var(--studio-text)]/65 mt-2",
+                            ),
+                        ),
+                        class_name="flex flex-col gap-5 mt-5 font-['DM_Sans']",
+                    ),
                     rx.el.p(
                         "The current catalog price is checked again when your order is saved. Your checkout will show the exact amount snapshot. No payment is taken by this button.",
                         class_name="text-xs leading-6 text-[var(--studio-text)]/60 my-4",
