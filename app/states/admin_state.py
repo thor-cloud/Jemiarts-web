@@ -18,6 +18,13 @@ from app.states.store_uploads import (
     require_saved_png,
 )
 from app.states.store_validation import ORDER_TRANSITIONS, rupees_to_paise, text
+from app.states.order_report import (
+    ReportRow,
+    build_order_report,
+    format_paise,
+    report_scope,
+    validate_report_filters,
+)
 
 
 class AdminOrder(TypedDict):
@@ -27,6 +34,7 @@ class AdminOrder(TypedDict):
     title: str
     date: str
     amount: float
+    amount_paise: int
     status: str
     options: list[str]
     reference: bool
@@ -48,6 +56,11 @@ class AdminState(rx.State):
     orders: list[AdminOrder] = []
     order_query: str = ""
     order_status_filter: str = ""
+    report_start: str = ""
+    report_end: str = ""
+    report_status: str = ""
+    report_error: str = ""
+    report_form_version: int = 0
     bouquets: list[Bouquet] = []
     portrait_sizes: list[PortraitSize] = []
     portrait_styles: list[PortraitStyle] = []
@@ -106,6 +119,112 @@ class AdminState(rx.State):
                 result.append(order)
         return result
 
+    @rx.var
+    def report_rows(self) -> list[ReportRow]:
+        if not self.allowed:
+            return []
+        return build_order_report(
+            self.orders, self.report_start, self.report_end, self.report_status
+        )["rows"]
+
+    @rx.var
+    def report_order_count(self) -> int:
+        if not self.allowed:
+            return 0
+        return build_order_report(
+            self.orders, self.report_start, self.report_end, self.report_status
+        )["count"]
+
+    @rx.var
+    def report_order_value(self) -> str:
+        if not self.allowed:
+            return format_paise(0)
+        return format_paise(
+            build_order_report(
+                self.orders,
+                self.report_start,
+                self.report_end,
+                self.report_status,
+            )["order_value_paise"]
+        )
+
+    @rx.var
+    def report_confirmed_value(self) -> str:
+        if not self.allowed:
+            return format_paise(0)
+        return format_paise(
+            build_order_report(
+                self.orders,
+                self.report_start,
+                self.report_end,
+                self.report_status,
+            )["confirmed_value_paise"]
+        )
+
+    @rx.var
+    def report_scope_label(self) -> str:
+        if not self.allowed:
+            return ""
+        return report_scope(
+            self.report_start, self.report_end, self.report_status
+        )
+
+    @rx.var
+    def report_filters_active(self) -> bool:
+        return self.allowed and bool(
+            self.report_start or self.report_end or self.report_status
+        )
+
+    @rx.event
+    async def apply_report_filters(self, form_data: dict[str, Any]):
+        if not self.allowed:
+            self.report_start = ""
+            self.report_end = ""
+            self.report_status = ""
+            self.report_error = ""
+            return
+        try:
+            await self._authorized()
+            start, end, status = validate_report_filters(
+                form_data.get("report_start", ""),
+                form_data.get("report_end", ""),
+                form_data.get("report_status", ""),
+            )
+            self.report_start = start
+            self.report_end = end
+            self.report_status = status
+            self.report_error = ""
+        except Exception as e:
+            if isinstance(e, PermissionError):
+                self._deny()
+            elif isinstance(e, ValueError):
+                self.report_error = str(e)
+            else:
+                logging.exception(f"Error: {e}")
+                self.report_error = (
+                    "Report filters could not be applied. Please retry."
+                )
+
+    @rx.event
+    async def reset_report_filters(self):
+        self.report_start = ""
+        self.report_end = ""
+        self.report_status = ""
+        self.report_error = ""
+        if not self.allowed:
+            return
+        try:
+            await self._authorized()
+            self.report_form_version += 1
+        except Exception as e:
+            if isinstance(e, PermissionError):
+                self._deny()
+            else:
+                logging.exception(f"Error: {e}")
+                self.report_error = (
+                    "Report filters could not be reset. Please retry."
+                )
+
     @rx.event
     def set_order_query(self, value: str):
         if not self.allowed:
@@ -140,6 +259,10 @@ class AdminState(rx.State):
         self.orders = []
         self.order_query = ""
         self.order_status_filter = ""
+        self.report_start = ""
+        self.report_end = ""
+        self.report_status = ""
+        self.report_error = ""
         self.bouquets = []
         self.portrait_sizes = []
         self.portrait_styles = []
@@ -202,6 +325,7 @@ class AdminState(rx.State):
                     title=f"{title} · quantity {order['quantity']}",
                     date=order["created_at"][:10],
                     amount=order["total_price_paise"] / 100,
+                    amount_paise=int(order["total_price_paise"]),
                     status=status,
                     options=[status, *ORDER_TRANSITIONS[status]],
                     is_bouquet=order["kind"] == "bouquet",
